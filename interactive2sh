@@ -1,0 +1,115 @@
+#!/bin/bash
+# Records an interactive shell script to a shell script that can be replayed
+
+option=""
+export OUTPUT_DIR=~/.config/interactive2sh
+export OUTPUT_SH_FILE=$OUTPUT_DIR/$1.auto.sh
+if [[ "$1" == -* ]]
+then OUTPUT_SH_FILE=$OUTPUT_DIR/$2.auto.sh
+fi
+
+_less () {
+	if [ -t 1 ] #If terminal
+	then less "$@"
+	else cat  "$@"
+	fi
+}
+
+case "$1" in
+"")	# No input
+	x=`basename $0`
+	cat  <<EOF
+USAGE:
+	$x -l: list all existing scripts
+	$x SCRIPT: Record interactive shell to script "SCRIPT"
+	$x -a  SCRIPT: append to script "SCRIPT"
+	$x -p  SCRIPT: print script "SCRIPT"
+	$x -pc SCRIPT: print script "SCRIPT" (cleaned)
+	$x -pp SCRIPT: print script "SCRIPT" and attached files
+EOF
+	exit 1
+	;;
+
+-a)     # Append to existing script
+	option="-a"
+	shift
+	;;
+-l)     # List all scripts
+	cd $OUTPUT_DIR
+	ls *.sh | sed s/.auto.sh//
+	exit 0
+	;;
+-p)	# Print script	
+	_less $OUTPUT_SH_FILE
+	exit 0
+	;;
+-pc)	# Print script (and clean)	
+	cat $OUTPUT_SH_FILE | grep -v 'RETRN_VAL=[1-9]' | sed 's/# \[.*//' | _less
+	exit 0
+	;;
+-pp)    # Print script, print attached files.
+	find $OUTPUT_SH_FILE* -type f -exec echo -e \\n---------- '{}' \; -exec cat '{}'  \;  | _less
+	exit 0
+	;;
+-.*)    # Unknown option
+	echo Unknown option "$1"
+	exit 1
+	;;
+esac
+
+if [ -e $OUTPUT_SH_FILE -a -z "$option" ]
+then
+	find $OUTPUT_SH_FILE* -type f -exec echo -e \\n---------- '{}' \; -exec cat '{}'  \; 
+	echo ^^^^^ script already exists ^^^^^
+	exit 1
+fi
+mkdir -p $OUTPUT_SH_FILE.in
+mkdir -p $OUTPUT_SH_FILE.out
+echo 'SH_FILE=`readlink -f "$0"`' >> $OUTPUT_SH_FILE
+echo cd `pwd` >> $OUTPUT_SH_FILE
+
+#Start a new shell, which logs various things needed to replay the commands
+bash --rcfile <(
+cat << "RCFILE_EOF"
+set +x
+source "$HOME/.bashrc"
+export PROMPT_COMMAND='RETRN_VAL=$?;echo "$(history 1 | sed "s/^[ ]*[0-9]\+[ ]*//" ) # [$$] [RETRN_VAL=$?]" >> $OUTPUT_SH_FILE'
+aneditor () {
+	editor=$1
+	shift
+	for f in "$@"
+	do
+		fullpath=`readlink -f "$f"`
+		[ -e $OUTPUT_SH_FILE.in/"$fullpath" ] || cp --parents "$fullpath" $OUTPUT_SH_FILE.in 
+	done
+	$editor "$@"
+	for f in "$@"
+	do
+		fullpath=`readlink -f "$f"`
+		test ! -e $fullpath || cmp "$fullpath" $OUTPUT_SH_FILE.in/"$fullpath" || (
+			cp --parents "$fullpath" $OUTPUT_SH_FILE.out
+			echo mv $fullpath $fullpath.`date -r $fullpath +%F`.bak >> $OUTPUT_SH_FILE
+			echo cp '$SH_FILE'.out/$fullpath $fullpath >> $OUTPUT_SH_FILE
+		)
+	done
+}
+alias vi="aneditor vi"
+alias vim="aneditor vim"
+alias nano="aneditor nano"
+alias emacs="aneditor emacs"
+export PS1='[$OUTPUT_SH_FILE] \w>'
+RCFILE_EOF
+)
+
+chmod +x $OUTPUT_SH_FILE
+
+#TODO:
+#also need to handle crontab
+#Check md5sums on wget
+
+
+#http://askubuntu.com/questions/93566/how-to-log-all-bash-commands-by-all-users-on-a-server
+#export PROMPT_COMMAND='RETRN_VAL=$?;logger -p local6.debug "$(whoami) [$$]: $(history 1 | sed "s/^[ ]*[0-9]\+[ ]*//" ) [$RETRN_VAL]"'
+
+#bash --rcfile <(echo "source "$HOME/.bashrc";export PS1='> ' && ls")
+#http://stackoverflow.com/questions/7192575/run-bash-command-in-new-shell-and-stay-in-new-shell-after-this-command-executes
