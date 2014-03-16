@@ -1,0 +1,61 @@
+#!/bin/sh
+#This is a script to keep sha256sums of files all removable media.
+#This also keeps identifying information about the disk to help you
+#remember which disk it refers to.
+#It is run without any arguments
+
+set -e
+set -x
+opts=reztcl
+cmd=sha256deep
+dir=~/."$cmd"_"$opts"
+mkdir -p $dir 
+#Change the following directory to whatever directory your distribution keeps its
+#Mounted media on.
+cd /media/$USER/
+
+round() {
+	markup=`echo $1 | sed 's/\([0-9][0-9]*\)[.][5-9]/$((\1+1))/' | sed 's/\([0-9][0-9]*\)[.][0-4]/\1/'`
+	eval echo $markup
+}
+
+update_smart () {
+	[ -s $outfile.smart ] || (
+		sudo smartctl -i $DISK > $outfile.smart.tmp &&
+		mv $outfile.smart.tmp $outfile.smart || true
+	)
+	[ -s $outfile.fdisk ] || (
+		sudo $outfile.fdisk > $outfile.fdisk.tmp &&
+		mv $outfile.fdisk.tmp $outfile.fdisk || true
+	)
+	df "$f" | grep  '^.dev.\w*' > $outfile.info
+	blkid $DEVICE >> $outfile.info
+	lsblk $DEVICE >> $outfile.info
+}
+
+update_deep () {
+	[ -s "$outfile" ] || [ -s "$outfile".gz ] || ( 
+		nice -18 $cmd -$opts -o f "$f"/ | tee "$outfile.tmp" &&
+		mv $outfile.tmp $outfile
+	)
+}
+
+	
+
+for u in smart deep ; do for f in * ; do
+#for u in smart ; do for f in * ; do
+	DEVICE=NULL
+	UUID=NULL
+	DEVICE=`df "$f" | grep -o '^.dev.\w*'`
+	DISK=`echo $DEVICE | sed 's/p[0-9]*$//' | sed 's/[0-9]*$//'`
+	SIZE=`lsblk -d $DISK | grep -o [0-9][0-9.]*[[:upper:]]`
+	SIZE=`round $SIZE`
+	blkid $DEVICE
+	#echo eval `blkid $DEVICE | grep -o 'UUID="[^"]*"'`
+	eval `blkid $DEVICE | grep -o 'UUID="[^"]*"'` || true
+	#eval `blkid $DEVICE | grep -o 'UUID="\w*"'`
+	#outfile="$dir/MEDIA.${f/ /+}.txt"
+	outfile="$dir/MEDIA.s$SIZE.u$UUID.txt"
+	update_$u
+done ; done
+
