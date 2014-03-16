@@ -10,6 +10,14 @@ I have many different disks (primarily harddisks) storing various files. I want 
 5. Store computed hashes for re-use (Matching on filesize, modification time and path)
 6. Match JPGs by EXIF date.
 
+## Current Utilities Here
+
+These utilties are very restricted and expiremental. 
+
+"size_of_new_unique_files.pl": This file takes lists in `du -ab' file format and give a list of new files and the total amount of MB used by those new files.  
+
+"mydeep.media": This creates sha256sums lists for removable media and keeps records of smartctl information to help identify the media later. 
+
 ## Other programs
 
 ### rsync
