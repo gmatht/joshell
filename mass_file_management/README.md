@@ -1,7 +1,7 @@
 Mass File Management that Caches File IDs
 =======
 
-I have many different disks (primarily harddisks) storing various files. I want to know that they are all backed up in some form. Given that I have terrabytes of files somehow (backups of backups apparently) I don't want to just backup everything onto new media yet again.  I'd like a utility that allows me to copy all files on X that do not yet exist on Y to Y, that is also well suited to tasks such as:
+I have many different disks (primarily harddisks) storing various files. I want to know that they are all backed up in some form. Given that I have terabytes of files somehow (backups of backups apparently) I don't want to just backup everything onto new media yet again.  I'd like a utility that allows me to copy all files on X that do not yet exist on Y to Y, that is also well suited to tasks such as:
 
 1. To list all files on X that are not duplicated/backed up on other media
 2. Deduplicate files on X
@@ -10,11 +10,11 @@ I have many different disks (primarily harddisks) storing various files. I want 
 5. Match JPGs by EXIF date.
 
 Since the are many files it would be helpful to store computed hashes for re-use (Matching on filesize, modification time and path)
-It would not be convienient to have multiple utilities unless they share the same hash file format.
+It would not be convenient to have multiple utilities unless they share the same hash file format.
 
 ## Current Utilities Here
 
-These utilties are very restricted and expiremental. 
+These utilities are very restricted and experimental. 
 
 [size_of_new_unique_files.pl](size_of_new_unique_files.pl): This file takes lists in `du -ab' file format and give a list of new files and the total amount of MB used by those new files.  
 
