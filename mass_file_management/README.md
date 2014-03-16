@@ -27,7 +27,7 @@ Hashdeep doesn't have a inbuilt way of quickly recomputing hashes for changed fi
 btrfs has handy deduplication facilities. One possible approach is just to copy everything onto a large btrfs drive and the deduplicate the files
   https://github.com/g2p/bedup/blob/master/README.rst
 
-There are many other deduplication utilities.
+There are many other deduplication utilities; e.g.
 	rdfind: http://rdfind.pauldreik.se/
 	duff:   http://duff.dreda.org/
 
