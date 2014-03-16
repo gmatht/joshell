@@ -1,4 +1,4 @@
-Mass File Management that Caches File Hashes
+Mass File Management that Caches File IDs
 =======
 
 I have many different disks (primarily harddisks) storing various files. I want to know that they are all backed up in some form. Given that I have terrabytes of files somehow (backups of backups apparently) I don't want to just backup everything onto new media yet again.  I'd like a utility that allows me to copy all files on X that do not yet exist on Y to Y, that is also well suited to tasks such as:
@@ -9,29 +9,29 @@ I have many different disks (primarily harddisks) storing various files. I want 
 4. To list all files that are not duplicated onto offsite storage
 5. Match JPGs by EXIF date.
 
-Since the are many files it would be helpful to Store computed hashes for re-use (Matching on filesize, modification time and path)
+Since the are many files it would be helpful to store computed hashes for re-use (Matching on filesize, modification time and path)
 It would not be convienient to have multiple utilities unless they share the same hash file format.
 
 ## Current Utilities Here
 
 These utilties are very restricted and expiremental. 
 
-*size_of_new_unique_files.pl*: This file takes lists in `du -ab' file format and give a list of new files and the total amount of MB used by those new files.  
+[size_of_new_unique_files.pl](size_of_new_unique_files.pl): This file takes lists in `du -ab' file format and give a list of new files and the total amount of MB used by those new files.  
 
-*mydeep.media*: This creates sha256sums lists for removable media and keeps records of smartctl information to help identify the media later. 
+[mydeep.media](mydeep.media): This creates sha256sums lists for removable media and keeps records of smartctl information to help identify the media later. 
 
 ## Other programs
 
 ### rsync
-Rsync would be great if all my files shared the same directory structure. As they do not, it is far from a complete solution.
+[Rsync](http://optics.ph.unimelb.edu.au/help/rsync/rsync.html) would be great if all my files shared the same directory structure. As they do not, it is far from a complete solution.
 
 ### du 
-The du command is quite handy. With the -ab option you get precise byte counts for each file, which can be quite handy for quickly guessing whether two files are duplicates.
+The [du](http://unixhelp.ed.ac.uk/CGI/man-cgi?du) command is quite handy. With the -ab option you get precise byte counts for each file, which can be quite handy for quickly guessing whether two files are duplicates.
 
 ### hashdeep
 A handy set of commands for creating hashes of files. I find 
      sha256deep -reztcl
-the most useful. hashdeep clearly isn't as fast as du, and unfortunately sha256deep normalises dates to GMT whereas du doesn't, making comparing timestamps less trivial.
+the most useful. [hashdeep](http://md5deep.sourceforge.net/) clearly isn't as fast as du, and unfortunately sha256deep normalises dates to GMT whereas du doesn't, making comparing timestamps less trivial.
 Hashdeep doesn't have a inbuilt way of quickly recomputing hashes for changed files only, nor an option to restart interrupted runs.
 
 ### Various Deduplication Facilities 
@@ -47,6 +47,6 @@ However they seem to be all limited in two ways:
 
 ### archivefs
 
-Unlike the other utilities archivefs does keep a record of hashes, and does keep that record up-to-date. 
+Unlike the other utilities [archivefs](https://code.google.com/p/archivefs/) not only keeps a record of hashes, but also keep that record up-to-date. 
 
 This is handy. It is designed primarily for deduplication rather than file management. It is not completely trivial to e.g. compare two archivefs filesystems.
