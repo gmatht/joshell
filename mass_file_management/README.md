@@ -24,10 +24,10 @@ A handy set of commands for creating hashes of files. I find
 the most useful. hashdeep clearly isn't as fast as du, and unfortunately sha256deep normalises dates to GMT whereas du doesn't, making comparing timestamps less trivial.
 Hashdeep doesn't have a inbuilt way of quickly recomputing hashes for changed files only, nor an option to restart interrupted runs.
 
-### bedup
-btrfs has handy deduplication facilities. One possible approach is just to copy everything onto a large btrfs drive and the deduplicate the files using bedup [bedup] (https://github.com/g2p/bedup/blob/master/README.rst)
+### Various Deduplication Facilities 
+Deduplication utilities often use both file sizes and hashes together, as I want. I find [bedup] (https://github.com/g2p/bedup/blob/master/README.rst) particularly interesting as it makes use of btrfs's handy deduplication facilities. One possible approach is just to copy everything onto a large btrfs drive and the deduplicate the files using bedup.
 
-There are many other deduplication utilities; e.g.
+There are also many other deduplication utilities; e.g.
 	[rdfind] (http://rdfind.pauldreik.se/) and
 	[duff]   (http://duff.dreda.org/).
 
