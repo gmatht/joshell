@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
-//Version 1.0
+//Version 0.11
 //Example GolfScratch:
-// GA"n="Si"0"Sn["answer"]U=Rn"1"O=\%Rn2"0"Sn+*3Rn1Ci1["say:"Ri]]]'
+// GA"n="Si"0"Sn["answer"]U=Rn"1"[O=\%Rn2"0"Sn+*3Rn1Ci1]["say:"Ri]
 
 int needcomma=0;
 
@@ -65,8 +65,9 @@ if(c==EOF) {
 if (c!=']') comma();
 if (isdigit(c)){
 	putchar(c);
-	while (isdigit(c=getchar())) { if (c==EOF){return;}; putchar(c); };
+	while (isdigit(c=getchar())) { if (c==EOF){return 0;}; putchar(c); };
 	ungetc(c,stdin);
+	return 1;
 } else { if (islower(c)) {
 	printf("\"%c\"", c);
 }
@@ -74,7 +75,7 @@ switch (c){
 	case 'A': printop(1,"doAsk"); break;
 	case 'C': printop(2,"changeVar:by:"); break;
 	case 'G': printop(0,"whenGreenFlag"); break;
-	case 'O': printop(2,"doIfElse"); break; //otherwise
+	case 'O': printop(3,"doIfElse"); break; //otherwise
 	case 'S': printop(2,"setVar:to:"); break;
 	case 'R': printop(1,"readVariable"); break;
 	case 'U': printop(2,"doUntil"); break;
