@@ -1,6 +1,6 @@
 set -e
 grep -v '^#' < r2.py > r_temp.py
-rm r_temp.txt
+rm r_temp.txt || true
 t() {
 	echo -------------------------------- >> r_temp.txt
 	echo "$@" >> r_temp.txt
