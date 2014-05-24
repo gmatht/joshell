@@ -5,11 +5,20 @@
 import pygtk
 pygtk.require('2.0')
 import gtk
+import subprocess
+
+
+output = gtk.TextView()
+
+
 
 class EntryExample:
     def enter_callback(self, widget, entry):
         entry_text = entry.get_text()
         print "Entry contents: %s\n" % entry_text
+	b=output.get_buffer()
+	proc = subprocess.Popen(["/bin/echo", "foo"], stdout=subprocess.PIPE) #FIXME: PyGTK docs filled with warnings that I should use .communicate() instea
+	output.get_buffer().set_text(proc.stdout.read())
 
     def entry_toggle_editable(self, checkbutton, entry):
         entry.set_editable(checkbutton.get_active())
@@ -30,36 +39,43 @@ class EntryExample:
 
         entry = gtk.Entry()
         entry.set_max_length(50)
-        entry.connect("activate", self.enter_callback, entry)
+        entry.connect("changed", self.enter_callback, entry)
         entry.set_text("hello")
         entry.insert_text(" world", len(entry.get_text()))
         entry.select_region(0, len(entry.get_text()))
-        vbox.pack_start(entry, True, True, 0)
+        vbox.pack_start(entry, False, False, 0)
         entry.show()
 
         hbox = gtk.HBox(False, 0)
-        vbox.add(hbox)
+        #vbox.add(hbox)
+        vbox.pack_start(hbox, False, False, 0)
         hbox.show()
                                   
         check = gtk.CheckButton("Editable")
-        hbox.pack_start(check, True, True, 0)
+        hbox.pack_start(check, False, False, 0)
         check.connect("toggled", self.entry_toggle_editable, entry)
         check.set_active(True)
         check.show()
     
         check = gtk.CheckButton("Visible")
-        hbox.pack_start(check, True, True, 0)
+        hbox.pack_start(check, False, False, 0)
         check.connect("toggled", self.entry_toggle_visibility, entry)
         check.set_active(True)
         check.show()
                                    
         button = gtk.Button(stock=gtk.STOCK_CLOSE)
         button.connect("clicked", lambda w: gtk.main_quit())
-        vbox.pack_start(button, True, True, 0)
+        vbox.pack_start(button, False, False, 0)
+
+	
+	vbox.pack_start(output, True, True, 0)
+	output.show()
+
         button.set_flags(gtk.CAN_DEFAULT)
         button.grab_default()
         button.show()
         window.show()
+
 
 def main():
     gtk.main()
