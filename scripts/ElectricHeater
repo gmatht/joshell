@@ -1,0 +1,126 @@
+#!/bin/bash
+# A script to heat your room on cold days by mining primecoin
+#
+# Will pause mining if
+#  Weather is warmer than days warmer than $THERMOSTAT (below)
+#  Running on Battery power
+#  User uses keyboard or mouse (Even niced processes can cause cache thrashing/disable turboboost)
+#  If LoadAvg is high (Give way to other niced processes)
+
+### SETTINGS ###
+THERMOSTAT=20    # Heat the room if temperature is below this value
+TIMEOUT_HEAT=1 # Amount of time in seconds before we revisit our decision to use electricity to heat the room.
+TIMEOUT_IDLE=5  # .. revisit our decision to not heat the room
+TIMEOUT_WEATHER=3600  # Time in seconds before we refresh our temperature estimate
+COMPILE_DIR=~/src
+
+PRIMECOIN_ACCOUNT=AN3qcGtHG6PrPSDjA6VDrb4Vq8VWcLecTt
+
+TEMPERATURE_URL="http://api.openweathermap.org/data/2.5/weather?q=Perth,AU&mode=xml&units=metric"
+
+NUM_THREADS=`cat /proc/cpuinfo | grep processor | wc -l`
+MAX_LOADAVG=$NUM_THREADS # Do not engage if loadavg is already this high
+
+
+### VARIABLES ###
+TEMPERATURE="-200"
+TEMPERATURE_AGE="3500"
+
+
+### CODE ###
+set -e
+
+install_miner () {
+	echo XoloMiner not installed
+	echo -n Install now [y/n]: 
+
+	read r
+	if [ "$r" = y ]
+	then
+		echo installing
+	else
+		echo user chose not to install, quiting
+		exit
+	fi
+	mkdir $COMPILE_DIR || true
+	cd $COMPILE_DIR
+
+	# This works on Ubuntu 14.04. I have not tested it on anything else.
+	(sudo apt-get update &&
+	sudo apt-get install -y yasm git make g++ build-essential libminiupnpc-dev &&
+	sudo apt-get install -y libboost-all-dev libdb++-dev libgmp-dev libssl-dev dos2unix) ||
+	yum groupinstall "Development Tools" 
+
+	git clone https://github.com/thbaumbach/primecoin
+	cd primecoin
+	sed 's/-O3/-O3 -march=native/g' -i.bak CMakeLists.txt
+	(mkdir bin ; cd bin && cmake .. && make -j$NUM_THREADS)
+}
+
+update_temperature () {
+	if [ "$TEMPERATURE_AGE" -gt "$TIMEOUT_WEATHER" ] 
+	then
+		#TODO: sleep until temperature falls below THERMOSTAT
+
+		echo updating temperature
+		TEMPERATURE=`wget "$TEMPERATURE_URL" -O - | grep -o 'temperature value="[0-9]*' | sed 's/[^0-9]//g'`
+		TEMPERATURE_AGE=0
+	fi
+}
+
+control_temperature () {
+ADJ_LOADAVG=0
+while true
+do
+	LAST_INTERRUPTS=$INTERRUPTS
+	INTERRUPTS="`egrep '(i8042|ehci)' /proc/interrupts`"
+	LOADAVG=`sed 's/\..*//g' </proc/loadavg`
+	update_temperature
+
+	POWER="`cat /sys/class/power_supply/ADP1/online`"
+
+	if [ "$POWER" = 1 -a "$INTERRUPTS" = "$LAST_INTERRUPTS" -a "$TEMPERATURE" -lt "$THERMOSTAT" -a $((LOADAVG-ADJ_LOADAVG)) -lt "$MAX_LOADAVG" ]
+	then 
+		echo ElectricHeater RUNNING: "$TEMPERATURE"C "$POWER" `echo "$INTERRUPTS" | md5sum | grep -o ^.......`  $((LOADAVG-ADJ_LOADAVG))
+		TEMPERATURE_AGE=$((TEMPERATURE_AGE+TIMEOUT_HEAT))
+		pkill -CONT xolominer || true
+		ADJ_LOADAVG=$NUM_THREADS
+		sleep $TIMEOUT_HEAT
+		
+	else 
+		echo ElectricHeater STOPPED: "$TEMPERATURE"C "$POWER" `echo "$INTERRUPTS" | md5sum | grep -o ^.......` $((LOADAVG-ADJ_LOADAVG))
+		TEMPERATURE_AGE=$((TEMPERATURE_AGE+TIMEOUT_IDLE))
+		pkill -STOP xolominer || true
+		ADJ_LOADAVG=0
+		sleep $TIMEOUT_IDLE
+	fi
+done
+}
+
+control_c () {
+	pkill xolominer
+}
+
+[ -e ~/src/primecoin ] || install_miner
+
+echo "Balance: http://beeeeer.org/?p=user&s=xpm&a=$PRIMECOIN_ACCOUNT"
+
+(        if flock -n 4
+         then
+                echo Starting
+		trap control_c SIGINT
+		nice -19 $COMPILE_DIR/primecoin/bin/xolominer -pooluser=$PRIMECOIN_ACCOUNT -poolip=54.251.179.44 -poolport=1337 -genproclimit=$NUM_THREADS -poolpassword=PASSWORD &
+		control_temperature
+		echo ERROR
+         else
+                echo Already Running, so quit
+
+                exit
+         fi
+         echo RUNNING
+         echo FINISHED
+)        4> /var/lock/ElectricHeater
+
+#TODO: rewrite in Perl/C to be less resource intesive: may use up to 0.1% of CPU?
+#Reduce mining load if CPU temperature high, to reduce thermal wear and tear and fan noise etc.?
+#See also: http://unix.stackexchange.com/questions/31184/process-priority-and-cpu-speed
