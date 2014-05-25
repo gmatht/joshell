@@ -48,13 +48,16 @@ install_miner () {
 	# This works on Ubuntu 14.04. I have not tested it on anything else.
 	(sudo apt-get update &&
 	sudo apt-get install -y yasm git make g++ build-essential libminiupnpc-dev &&
-	sudo apt-get install -y libboost-all-dev libdb++-dev libgmp-dev libssl-dev dos2unix) ||
+	sudo apt-get install -y libdb++-dev libgmp-dev libssl-dev dos2unix cmake
+	sudo apt-get install libboost-system1.48.0 libboost-system1.48-dev libboost-thread1.48-dev libboost-timer1.48-dev libboost-chrono1.48-dev || #Works on Ubuntu 12.04
+		sudo apt-get install libboost-all-dev	#Works on 14.04
+) ||
 	yum groupinstall "Development Tools" 
 
-	git clone https://github.com/thbaumbach/primecoin
+	[ -e primecoin ] || git clone https://github.com/thbaumbach/primecoin
 	cd primecoin
 	sed 's/-O3/-O3 -march=native/g' -i.bak CMakeLists.txt
-	(mkdir bin ; cd bin && cmake .. && make -j$NUM_THREADS)
+	(mkdir -p bin ; cd bin && cmake .. && make -j$NUM_THREADS)
 }
 
 update_temperature () {
@@ -73,11 +76,11 @@ ADJ_LOADAVG=0
 while true
 do
 	LAST_INTERRUPTS=$INTERRUPTS
-	INTERRUPTS="`egrep '(i8042|ehci)' /proc/interrupts`"
+	INTERRUPTS="`egrep '(i8042|hci_hcd)' /proc/interrupts`"
 	LOADAVG=`sed 's/\..*//g' </proc/loadavg`
 	update_temperature
 
-	POWER="`cat /sys/class/power_supply/ADP1/online`"
+	POWER="`cat /sys/class/power_supply/ADP1/online 2> /dev/null || echo 1`"
 
 	if [ "$POWER" = 1 -a "$INTERRUPTS" = "$LAST_INTERRUPTS" -a "$TEMPERATURE" -lt "$THERMOSTAT" -a $((LOADAVG-ADJ_LOADAVG)) -lt "$MAX_LOADAVG" ]
 	then 
@@ -101,7 +104,7 @@ control_c () {
 	pkill xolominer
 }
 
-[ -e ~/src/primecoin ] || install_miner
+[ -e ~/src/primecoin/bin/xolominer ] || install_miner
 
 echo "Balance: http://beeeeer.org/?p=user&s=xpm&a=$PRIMECOIN_ACCOUNT"
 
@@ -109,6 +112,7 @@ echo "Balance: http://beeeeer.org/?p=user&s=xpm&a=$PRIMECOIN_ACCOUNT"
          then
                 echo Starting
 		trap control_c SIGINT
+		pkill xolominer || true
 		nice -19 $COMPILE_DIR/primecoin/bin/xolominer -pooluser=$PRIMECOIN_ACCOUNT -poolip=54.251.179.44 -poolport=1337 -genproclimit=$NUM_THREADS -poolpassword=PASSWORD &
 		control_temperature
 		echo ERROR
