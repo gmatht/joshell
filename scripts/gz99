@@ -1,3 +1,4 @@
+#!/bin/bash
 set -e
 
 command -v advdef > /dev/null || echo advdef is not installed. Install for a better compression ratio
@@ -18,11 +19,12 @@ myhash(){
 	sha256sum $@ | sed s/\ .*//
 }
 
-time gzip -9 > $OUT
+time gzip -9 > $OUT.new
+mv $OUT.new $OUT
 ORIG_HASH=`gunzip < $OUT|myhash`
 
 accept_new(){
-if [ ".`gunzip < $OUT|myhash`" = ".$ORIG_HASH" ]
+if [ ".`gunzip < $OUT.new|myhash`" = ".$ORIG_HASH" ]
 then
 	oldsize=$(stat -c%s "$OUT")
 	newsize=$(stat -c%s "$OUT.new")
@@ -38,9 +40,11 @@ else
 	rm $OUT.new
 fi
 }
-echo Finished GZIP compression, trying 7z -t gzip
+echo Finished GZIP compression, you now have a complete gz file
+echo You can stop here, but we will try to make the file smaller for you.
 rm $OUT.new || true
-time 7z a $OUT.new -mx=9 -tgzip $OUT 
+#time 7z a $OUT.new -mx=9 -tgzip $OUT 
+gunzip < $OUT | time 7z a $OUT.new -mx=9 -tgzip -si
 #time 7z a dummy -mx=9 -tgzip -so -si $OUT.new $OUT
 
 accept_new
