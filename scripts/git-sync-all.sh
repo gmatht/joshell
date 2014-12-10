@@ -22,6 +22,7 @@ endecho(){
 #Attempts to make sure there are no open files that would prevent a merge
 safemerge(){
 	#Test if a window title mentions the directory
+	#problem: How do we know if there are files open in unactive tabs?
 	merge_d=$1 #Relative to home directory, should also be current directory
 	#WMCTRL_F=`mktemp gw.XXXXXXXXX` 
 	WMCTRL_F=~/gw.$DATE.tmp
@@ -32,6 +33,7 @@ safemerge(){
 		return 1
 	fi
 
+	#*Some* editors store temporary files if they have the file open.
 	git diff --name-only FETCH_HEAD | while read -r p
 	do
 		[[ "$p" == */* ]] || p="./$p"
