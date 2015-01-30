@@ -1,3 +1,10 @@
+#!/bin/sh
+SECS_PER_CYCLE=9
+NET_WAIT_COUNT_MAX=3
+####################
+NET_WAIT_COUNT=0
+
+
 NUM_RUNNING=`ps x | grep '/bin/sh.*sshwatcher.sh' | fgrep -v "D+" | wc -l`
 #NUM_RUNNING=`ps x | grep '/bin/sh.*sshwatcher.sh' | fgrep -v "D+" |tee swlog.tmp | wc -l`
 ps x | grep sshwatcher.sh
@@ -13,7 +20,7 @@ fi
 echo running
 
 getip(){
-ip route get 8.8.8.8 | head -1 | cut -d' ' -f8
+ip route get 8.8.8.8 2> /dev/null | head -1 | cut -d' ' -f8
 }
 
 PREV_IP=`getip`
@@ -22,12 +29,24 @@ do
 	NEW_IP=`getip`
 	if [ "$PREV_IP" != "$NEW_IP" ]
 	then
-		echo IP address changed "($PREV_IP->$NEW_IP)", killing SSH sessions.
-		pkill ssh
-		sleep 1 
-		pkill -9 ssh
-		PREV_IP="$NEW_IP"
-	#else
+		if [ -z "$NEW_IP" -a "$NET_WAIT_COUNT" -lt "$NET_WAIT_COUNT_MAX" ]
+		then
+			echo "Waiting for network to come up ($NET_WAIT_COUNT/$NET_WAIT_COUNT_MAX)"
+			NET_WAIT_COUNT=$((NET_WAIT_COUNT+1))
+		else
+			if [ -z "$PREV_IP" ]
+			then
+				echo Connected to Network "IP=$NEW_IP".
+			else
+				echo IP address changed "($PREV_IP->$NEW_IP)", killing SSH sessions.
+				pkill -x ssh
+				sleep 1 
+				pkill -9 -x ssh
+			fi
+			PREV_IP="$NEW_IP"
+		fi
+	else
+		NET_WAIT_COUNT=0
 		#echo no change "($PREV_IP->$NEW_IP)".
 	fi
 	sleep 9
