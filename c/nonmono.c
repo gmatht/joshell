@@ -19,8 +19,9 @@ for(i=0;i<17;i++){
 
 while (!ok){
 ok=1;
+changes=0;
 loops++;
-puts("\n--\n");
+//puts("\n--\n");
 for(k=0;k<17;k++){
 	for(j=0;j<k;j++){
 		for(i=0;i<j;i++){
@@ -32,18 +33,20 @@ for(k=0;k<17;k++){
 				ok=0;
 				if (rand()%2) {
 					g[j][k]=new_c;
-					printf("%2d->%2d: %c\n",j,k,(new_c+'a'));
+					//printf("%2d->%2d: %c\n",j,k,(new_c+'a'));
 				} else {
 					g[i][k]=new_c;
-					printf("%2d->%2d: %c\n",i,k,(new_c+'a'));
+					//printf("%2d->%2d: %c\n",i,k,(new_c+'a'));
 				}
 			}
 		}
 	}
 }
+if (!(loops%1024)){
+	printf("Loops: %d, changes: %d \r",loops,changes);
+}
 }
 
-printf("Loops: %d, changes: %d \n",loops,changes);
 
 
 puts("\n\n-- Final Graph --\n");
