@@ -12,6 +12,8 @@ use strict;
 use warnings;
 use integer;
 
+our $d_dev;
+
 my $output_file="tmp_out";
 
 $|=1; #Buffering does not play well with "\r"
@@ -25,21 +27,28 @@ if ($#ARGV>=0) {
 
 open (my $out_fh, "| /bin/gzip -c > $output_file.tmp.gz") or die "error starting gzip $!";
 
+my @SCAN_DIRS;
 if ($#ARGV>=1) {
-	chdir $ARGV[1] || die "Cannot enter starting directory $ARGV[1]";
-	print "Entered directory $ARGV[1]";
-	if ($#ARGV>=2) {
-		if ($#ARGV>=3) {
-			print "Too many arguments\n";
-			exit 1;
-		}
-		$base_prefix=$ARGV[2];
-	} else {
-		$base_prefix=$ARGV[1];
-	}
+	@SCAN_DIRS=@ARGV;
+	shift @SCAN_DIRS;
+} else { 
+	@SCAN_DIRS='.'
 }
 
-(our $d_dev,my $d_ino,my $d_mode,my $d_nlink,my $d_uid,my $d_gid,my $d_rdev,my $d_size, my $d_atime,my $d_mtime,my $d_ctime,my $d_blksize,my $d_blocks) = lstat(".");
+#if ($#ARGV>=1) {
+#	chdir $ARGV[1] || die "Cannot enter starting directory $ARGV[1]";
+#	print "Entered directory $ARGV[1]";
+#	if ($#ARGV>=2) {
+#		if ($#ARGV>=3) {
+#			print "Too many arguments\n";
+#			exit 1;
+#		}
+#		$base_prefix=$ARGV[2];
+#	} else {
+#		$base_prefix=$ARGV[1];
+#	}
+#}
+
 our $count=0;
 our $total_du=0;
 sub parse_dir{
@@ -101,12 +110,19 @@ sub parse_dir{
 				#if ($d_dev==-1) {
 				#        ($d_dev,my $d_ino,my $d_mode,my $d_nlink,my $d_uid,my $d_gid,my $d_rdev,my $d_size, my $d_atime,my $d_mtime,my $d_ctime,my $d_blksize,my $d_blocks) = stat(".");
 				#}
-	 			if ($dev == $d_dev) {
+	 			if ($dev == $d_dev or $file =~ /^@/ or 1) {
 			  		#not a mountpoint
+					#If file starts with "@", probably a btrfs subvolume
 					#chdir is about 2x as fast as referencing long paths
-					chdir $file || die "couldn't change the directory to $prefix$clean_fname/";;
-					parse_dir("$prefix$clean_fname/",$dev);
-					chdir ".."  || die "couldn't change the directory to $prefix$clean_fname/..";
+					if (chdir $file) {
+						parse_dir("$prefix$clean_fname/",$dev);
+						chdir ".."  || die "couldn't change the directory to $prefix$clean_fname/..";
+					} else {
+						print "Couldn't change the directory to $prefix$clean_fname/ !!!\n";
+						#|| die "couldn't change the directory to $prefix$clean_fname/";;
+					}
+				} else {
+					#print "Avoiding mountpoint $prefix$clean_fname/\n";;
 				}
 			}
 		}
@@ -114,7 +130,22 @@ sub parse_dir{
 	close $dh;
 }
 
-parse_dir($base_prefix);
-chdir $orig_cwd || die "Cannot return to original directory: $orig_cwd";
+# foreach loop execution
+# foreach $a (@list){
+#     print "value of a: $a\n";
+#     }
+foreach my $D (@SCAN_DIRS){
+	if ($D eq "" or $D eq ".") {
+		$base_prefix="";
+	} else {
+		chdir $D || die "Cannot enter starting directory $D";
+		$base_prefix=$D;
+		$base_prefix=~s!/*$!/!; #Add trailing slash;
+	}
+	($d_dev,my $d_ino,my $d_mode,my $d_nlink,my $d_uid,my $d_gid,my $d_rdev,my $d_size, my $d_atime,my $d_mtime,my $d_ctime,my $d_blksize,my $d_blocks) = lstat(".");
+	print "du: $D $base_prefix\n";
+	parse_dir($base_prefix);
+	chdir $orig_cwd || die "Cannot return to original directory: $orig_cwd";
+}
 close $out_fh;
-move("$output_file.tmp.gz", "$output_file.gz")
+move("$output_file.tmp.gz", "$output_file.gz");

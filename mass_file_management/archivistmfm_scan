@@ -1,0 +1,122 @@
+#!/bin/bash
+#This is a script to keep sha256sums of files all removable media.
+#This also keeps identifying information about the disk to help you
+#remember which disk it refers to.
+#It is run without any arguments
+
+#TODO:	Use /dev/disk/by-id and /dev/disk/by-uuid to get id's without root?
+#	Fast update of hashes using 
+#		sha256deep -f <list of updated files>
+#	Store EXIF info for photos
+#	Advanced search techniques.
+
+# USE /sbin/udevadm info --query=property --name=sdd1
+# USE /dev/disk/by-id/
+# cat /sys/devices/virtual/dmi/id/board_{vendor,name,version}
+
+# sed 's,\t.*/,_,' < ~/.archivistmfm/Z1F3HANF/2/du.txt | sort | uniq -c | sort -rn  | less
+
+set -e
+set -x
+opts=reztcl
+cmd=sha256deep
+#dir=~/."$cmd"_"$opts"
+#dir=~/.archivistmfm/
+dir=/var/lib/ofm
+mkdir -p $dir 
+ORIG_PWD=`pwd`
+SCRIPT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+#Change the following directory to whatever directory your distribution keeps its
+#Mounted media on.
+#cd /media/$USER/
+
+round() {
+	markup=`echo $1 | sed 's/\([0-9][0-9]*\)[.][5-9]/$((\1+1))/' | sed 's/\([0-9][0-9]*\)[.][0-4]/\1/'`
+	eval echo $markup
+}
+
+update_smart () {
+	[ -s $outfile.smart ] || (
+		sudo smartctl -i $DISK > $outfile.smart.tmp &&
+		mv $outfile.smart.tmp $outfile.smart || true
+	)
+	[ -s $outfile.fdisk ] || (
+		echo p | sudo fdisk $DISK > $outfile.fdisk.tmp &&
+		mv $outfile.fdisk.tmp $outfile.fdisk || true
+	)
+	df "$f" | grep  '^.dev.\w*' > $outfile.info
+	sudo blkid $DEVICE >> $outfile.info
+	lsblk $DEVICE >> $outfile.info
+}
+
+update_deep () {
+	[ -s "$outfile".du ] || [ -s "$outfile".du.gz ] || ( 
+		(TZ="Etc/GMT" du -ab --time "$f"/) | tee "$outfile.du"
+	)
+	[ -s "$outfile" ] || [ -s "$outfile".gz ] || ( 
+		nice -18 $cmd -$opts -o f "$f"/ | tee "$outfile.tmp" &&
+		mv $outfile.tmp $outfile
+	)
+}
+
+#rm $dir/$hostname.host || true
+#for u in smart deep ; do for DISK in /dev/sd?; do
+for u in smart ; do for DISK in /dev/sd?; do
+#for u in smart ; do for f in * ; do
+	DEVICE=NULL
+	UUID=NULL
+	ID_SERIAL_SHORT=NO_SERIAL
+	eval $(udevadm info --query=property --name=$DISK | grep ^ID_SERIAL_SHORT=)
+	mkdir -p $dir/$ID_SERIAL_SHORT
+	[ -s $dir/$ID_SERIAL_SHORT/udevadm.disk.txt] || udevadm info --query=property --name=$DISK > $dir/$ID_SERIAL_SHORT/udevadm.disk.txt
+	[ -s $dir/$ID_SERIAL_SHORT/smartctl.txt ] || smartctl -i $DISK > $dir/$ID_SERIAL_SHORT/smartctl.txt
+	echo $HOSTNAME > $dir/$ID_SERIAL_SHORT/HOSTNAME
+	for DEVICE in $DISK?*
+	do
+		COLS=`tput cols`
+		COLS=$((COLS-8))
+		PART=$(echo $DEVICE | sed s,^$DISK,,)
+		PartDir=$dir/$ID_SERIAL_SHORT/$PART
+		#eval $(udevadm info --query=property --name=$DEVICE | grep ^MINOR=)
+		mkdir -p $PartDir
+		[ -s $PartDir/udevadm.part.txt ] || udevadm info --query=property --name=$DEVICE > $dir/$ID_SERIAL_SHORT/$PART/udevadm.part.txt
+		eval $(udevadm info --query=property --name=$DISK | grep ^ID_FS_LABEL=)
+		df $DEVICE > $PartDir/df.txt
+		if ! [ -s $PartDir/du.gz ]
+		then 	 
+				if MountPoints=`df | grep ^$DEVICE | grep -o '[^ ]*$'` # BtrFS may have multiple mountpoints.
+				then
+					#echo $DEVICE mounted at $MountPoints
+					for mp in $MountPoints 
+					do
+						if [[ "$mp" =~ media ]]
+						then
+							cd "$mp"
+							mp=.
+						fi
+	
+						#TZ="Etc/GMT" nice du -xab --time "$mp/"
+						nice perl $SCRIPT_DIR/du.pl $PartDir/du "$mp/"
+					done
+				fi
+			#) | tee >(gzip --stdout > $PartDir/du.txt.gz.tmp) | sed 's/$/                            /' grep -o '^.\{'$COLS'\}' |tr '\n' '\r' && mv $PartDir/du.txt.gz.tmp $PartDir/du.txt.gz
+			 
+			#| tee $PartDir/du.txt.tmp | sed 's/$/                            /' | grep -o '^.\{'$COLS'\}'|tr '\n\t' '\r '  && mv $PartDir/du.txt.tmp $PartDir/du.txt
+		fi
+	done
+done ; done
+	
+exit	
+	
+	DEVICE=`df "$f" | grep -o '^.dev.\w*'`
+	DISK=`echo $DEVICE | sed 's/p[0-9]*$//' | sed 's/[0-9]*$//'`
+	SIZE=`lsblk -d $DISK | grep -o [0-9][0-9.]*[[:upper:]]`
+	SIZE=`round $SIZE`
+	blkid $DEVICE
+	#echo eval `blkid $DEVICE | grep -o 'UUID="[^"]*"'`
+	eval `blkid $DEVICE | grep -o 'UUID="[^"]*"'` # || false
+	#eval `blkid $DEVICE | grep -o 'UUID="\w*"'`
+	#outfile="$dir/MEDIA.${f/ /+}.txt"
+	outfile="$dir/MEDIA.s$SIZE.u$UUID.txt"
+	update_$u
+
