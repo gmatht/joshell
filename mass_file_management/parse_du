@@ -1,0 +1,15 @@
+#zgrep '^[0-9]\{10\}' `find /var/lib/ofm | grep du.gz$` | tee Files1GB.txt
+#zgrep '^[0-9]\{10\}' `find /var/lib/ofm | grep du.gz$` | tee Files1GB.txt
+sed s/^[^:]*:// < Files1GB.txt  | sort -rn | head -n20
+for f in `find /var/lib/ofm | grep du.gz$`
+do
+	echo PROCESSING: "$f" 1>&2 
+	zcat "$f"
+done | time perl $0.pl | tee parse_du.log
+
+< parse_du.log | grep "^[0-9]" | sort -n 
+
+< parse_du.log grep "^[0-9]" | sort -n | tee parse_du.sort | tail
+#zcat echo `find /var/lib/ofm | grep du.gz$` | time perl $0.pl
+
+
