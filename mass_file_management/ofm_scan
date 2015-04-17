@@ -103,7 +103,7 @@ for u in smart; do for DISK in /dev/sd?; do
 					mp="/media/$ID_SERIAL_SHORT.$ID_FS_LABEL"
 					mkdir "$mp"
 					mount -t auto "$DEVICE" "$mp"
-					perl $SCRIPT_DIR/du.pl $PartDir/du $mp
+					perl $SCRIPT_DIR/du.pl "$PartDir/du" "$mp"
 					umount "$mp"
 					rmdir "$mp"
 				else 

@@ -1,7 +1,7 @@
 my %filereps = ();
 my %sparse_used =();
 my $lastpath="";
-use integer;
+#use integer;
 $|=1;
 while (my $line = <>) {
 	if ($line =~ /([^\t]*)\t([^\t]*)\t([^\n\r]*)/) {
@@ -73,12 +73,12 @@ for (keys %filereps) {
 }
 for (keys %extension) {
 	if ($extension{$_} > 1000000000) {
-		print (($extension{$_}/1000000000)."G\t$_\n");
+		print (int($extension{$_}/1000000000)."G\t$_\n");
 	}
 }	
 undef %extension;
 
-foreach my $m (0,1,10) {
+foreach my $m (0,0.0001,0.001,1,10) {
 foreach my $u (0..1) {
 
 my $bytes_raw=0; my $bytes_dedup=0;
