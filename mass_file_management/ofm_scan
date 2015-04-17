@@ -84,7 +84,7 @@ for u in smart; do for DISK in /dev/sd?; do
 		if ! [ -s $PartDir/du.gz ]
 		then 	 
 				echo MP00:
-				MountPoints=`df | grep ^$DEVICE | grep -o '[^ ]*$'` || true # BtrFS may have multiple mountpoints
+				MountPoints=`df | grep ^$DEVICE | grep -o ' /.*$'| sed s/\ //` || true # BtrFS may have multiple mountpoints
 				echo MP0: $MountPoints
 				if echo $MountPoints | egrep ' |media|^$' > /dev/null
 				then
