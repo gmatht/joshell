@@ -108,7 +108,7 @@ for u in smart; do for DISK in /dev/sd?; do
 					rmdir "$mp"
 				else 
 					echo MP2: $MountPoints
-					perl $SCRIPT_DIR/du.pl $PartDir/du $MountPoints
+					perl $SCRIPT_DIR/du.pl "$PartDir/du" $MountPoints
 					#echo nice perl $SCRIPT_DIR/du.pl $PartDir/du $MountPoints
 				fi
 			#) | tee >(gzip --stdout > $PartDir/du.txt.gz.tmp) | sed 's/$/                            /' grep -o '^.\{'$COLS'\}' |tr '\n' '\r' && mv $PartDir/du.txt.gz.tmp $PartDir/du.txt.gz
