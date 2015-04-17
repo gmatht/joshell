@@ -14,26 +14,18 @@
 # USE /dev/disk/by-id/
 # cat /sys/devices/virtual/dmi/id/board_{vendor,name,version}
 
-<<<<<<< HEAD
-=======
 # sed 's,\t.*/,_,' < ~/.archivistmfm/Z1F3HANF/2/du.txt | sort | uniq -c | sort -rn  | less
 
->>>>>>> 04c02ce7eaff84840682a7213be15fa6b087ccd3
 set -e
-set -x
+#set -x
 opts=reztcl
 cmd=sha256deep
 #dir=~/."$cmd"_"$opts"
-<<<<<<< HEAD
-dir=~/.archivistmfm/
-mkdir -p $dir 
-=======
 #dir=~/.archivistmfm/
 dir=/var/lib/ofm
 mkdir -p $dir 
 ORIG_PWD=`pwd`
 SCRIPT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
->>>>>>> 04c02ce7eaff84840682a7213be15fa6b087ccd3
 #Change the following directory to whatever directory your distribution keeps its
 #Mounted media on.
 #cd /media/$USER/
@@ -69,64 +61,65 @@ update_deep () {
 
 #rm $dir/$hostname.host || true
 #for u in smart deep ; do for DISK in /dev/sd?; do
-for u in smart ; do for DISK in /dev/sd?; do
+for u in smart; do for DISK in /dev/sd?; do
 #for u in smart ; do for f in * ; do
 	DEVICE=NULL
 	UUID=NULL
 	ID_SERIAL_SHORT=NO_SERIAL
 	eval $(udevadm info --query=property --name=$DISK | grep ^ID_SERIAL_SHORT=)
 	mkdir -p $dir/$ID_SERIAL_SHORT
-	[ -s $dir/$ID_SERIAL_SHORT/udevadm.disk.txt] || udevadm info --query=property --name=$DISK > $dir/$ID_SERIAL_SHORT/udevadm.disk.txt
+	[ -s $dir/$ID_SERIAL_SHORT/udevadm.disk.txt ] || udevadm info --query=property --name=$DISK > $dir/$ID_SERIAL_SHORT/udevadm.disk.txt
 	[ -s $dir/$ID_SERIAL_SHORT/smartctl.txt ] || smartctl -i $DISK > $dir/$ID_SERIAL_SHORT/smartctl.txt
-	echo $HOSTNAME > $dir/$ID_SERIAL_SHORT/HOSTNAME
+	#echo $HOSTNAME > $dir/$ID_SERIAL_SHORT/HOSTNAME
 	for DEVICE in $DISK?*
 	do
-		COLS=`tput cols`
-		COLS=$((COLS-8))
+		echo $u $DISK $DEVICE 
 		PART=$(echo $DEVICE | sed s,^$DISK,,)
 		PartDir=$dir/$ID_SERIAL_SHORT/$PART
 		#eval $(udevadm info --query=property --name=$DEVICE | grep ^MINOR=)
 		mkdir -p $PartDir
+
 		[ -s $PartDir/udevadm.part.txt ] || udevadm info --query=property --name=$DEVICE > $dir/$ID_SERIAL_SHORT/$PART/udevadm.part.txt
-<<<<<<< HEAD
-		df $DEVICE > $PartDir/df.txt
-		if ! [ -s $PartDir/du.txt ]
-		then 	 (
-=======
-		eval $(udevadm info --query=property --name=$DISK | grep ^ID_FS_LABEL=)
 		df $DEVICE > $PartDir/df.txt
 		if ! [ -s $PartDir/du.gz ]
 		then 	 
->>>>>>> 04c02ce7eaff84840682a7213be15fa6b087ccd3
-				if MountPoints=`df | grep ^$DEVICE | grep -o '[^ ]*$'` # BtrFS may have multiple mountpoints.
+				echo MP00:
+				MountPoints=`df | grep ^$DEVICE | grep -o '[^ ]*$'` || true # BtrFS may have multiple mountpoints
+				echo MP0: $MountPoints
+				if echo $MountPoints | egrep ' |media|^$' > /dev/null
 				then
-					#echo $DEVICE mounted at $MountPoints
-					for mp in $MountPoints 
-					do
-						if [[ "$mp" =~ media ]]
-						then
-							cd "$mp"
-							mp=.
-						fi
-	
-<<<<<<< HEAD
-						TZ="Etc/GMT" nice du -xab --time "$mp/"
-					done
-				fi
-			#) | tee >(gzip --stdout > $PartDir/du.txt.gz.tmp) | sed 's/$/                            /' grep -o '^.\{'$COLS'\}' |tr '\n' '\r' && mv $PartDir/du.txt.gz.tmp $PartDir/du.txt.gz
-			) | tee $PartDir/du.txt.tmp | sed 's/$/                            /' | grep -o '^.\{'$COLS'\}'|tr '\n\t' '\r '  && mv $PartDir/du.txt.tmp $PartDir/du.txt
-=======
-						#TZ="Etc/GMT" nice du -xab --time "$mp/"
-						nice perl $SCRIPT_DIR/du.pl $PartDir/du "$mp/"
-					done
+					echo MP1: $MountPoints
+					#Multiple mountpoints, or media
+					
+					ID_FS_LABEL=
+					ID_FS_UUID=
+					#echo $(egrep '^(ID_FS_LABEL|UUID)=' < $dir/$ID_SERIAL_SHORT/$PART/udevadm.part.txt)
+					eval $(egrep '^(ID_FS_LABEL|ID_FS_UUID)=' < $dir/$ID_SERIAL_SHORT/$PART/udevadm.part.txt)
+					if [ -z "$ID_FS_LABEL" ]
+					then
+						#echo ID_FS_LABEL=`echo $UUID| grep -o ^......` 
+						ID_FS_LABEL=`echo $ID_FS_UUID| grep -o ^......` 
+					fi 
+					mp="/media/$ID_SERIAL_SHORT.$ID_FS_LABEL"
+					mkdir "$mp"
+					mount -t auto "$DEVICE" "$mp"
+					perl $SCRIPT_DIR/du.pl $PartDir/du $mp
+					umount "$mp"
+					rmdir "$mp"
+				else 
+					echo MP2: $MountPoints
+					perl $SCRIPT_DIR/du.pl $PartDir/du $MountPoints
+					#echo nice perl $SCRIPT_DIR/du.pl $PartDir/du $MountPoints
 				fi
 			#) | tee >(gzip --stdout > $PartDir/du.txt.gz.tmp) | sed 's/$/                            /' grep -o '^.\{'$COLS'\}' |tr '\n' '\r' && mv $PartDir/du.txt.gz.tmp $PartDir/du.txt.gz
 			 
 			#| tee $PartDir/du.txt.tmp | sed 's/$/                            /' | grep -o '^.\{'$COLS'\}'|tr '\n\t' '\r '  && mv $PartDir/du.txt.tmp $PartDir/du.txt
->>>>>>> 04c02ce7eaff84840682a7213be15fa6b087ccd3
 		fi
-	done
-done ; done
+	done &
+done  #DISK 
+done
+
+wait
 	
 exit	
 	
