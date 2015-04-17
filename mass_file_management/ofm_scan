@@ -101,6 +101,7 @@ for u in smart; do for DISK in /dev/sd?; do
 						ID_FS_LABEL=`echo $ID_FS_UUID| grep -o ^......` 
 					fi 
 					mp="/media/$ID_SERIAL_SHORT.$ID_FS_LABEL"
+					[ ! -e "$mp" ] || rmdir "$mp"
 					mkdir "$mp"
 					mount -t auto "$DEVICE" "$mp"
 					perl $SCRIPT_DIR/du.pl "$PartDir/du" "$mp"
