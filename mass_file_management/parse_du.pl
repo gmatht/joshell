@@ -18,6 +18,9 @@ while (my $line = <>) {
 		#print "$1\t$2\t$e 
 		#print "$3";
 		if (not $isdir) {
+			$path=uc($path) # Ignore Case
+			$path=~s,/VIDEO_TS/,v,g # Names of vob files are meaningless, consider parent directory instead.
+
 			my $fname=$path;
 			$fname=~ s/.*\///;
 
