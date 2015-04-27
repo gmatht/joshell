@@ -1,6 +1,20 @@
 my %filereps = ();
 my %sparse_used =();
 my $lastpath="";
+
+our $cache_out_file='';
+
+foreach $a (@ARGV) {
+	if ( $a =~ /-c(.*)/ ) {
+		$cache_out_file="$1.ofmC1.gz";
+		print STDERR "Outputing cache file $cache_out_file\n";
+		#open(our $cache_out_fh, ">", "$cache_out_file.new") or die ("Cannot open '$cache_out_file' for writing");
+		open(my $cache_out_fh, "|-" , "gzip > $cache_out_file.new") or die "Cannot open Cache pipe :(";
+;
+}
+
+
+
 #use integer;
 $|=1;
 while (my $line = <>) {
@@ -21,17 +35,23 @@ while (my $line = <>) {
 			$path=uc($path); # Ignore Case
 
 # Names of vob files are meaningless, consider parent directory instead:
-			$path=~s,/VIDEO_TS/,v,g 
+# Maybe should ensure this doesn't result in fname's longer than 256 bytes
+# In the output cache files?
+# That could cause problems with Pipes on some OS's?
+			$path=~s,/VIDEO_TS/,v,g;
 
 			my $fname=$path;
 
 			$fname=~ s/.*\///;
+			# Simplify names down to MS-DOS allowed chars
+			# and '+', and '?' for anything not understood.
 			$fname=~s/[^[:alnum:]!#%&'()-@^_`{}~\+ ]/?/g;
 
+			my $used=int($size);
 			if ($size =~ /([0-9]*)b([0-9]*)/) {
 				$size=$1;
 				my $blocks=$2;
-				my $used=$blocks*512;
+				$used=$blocks*512;
 				my $id="$size\t$fname";
 				#print "$id -> Sparse Size: $used ($blocks 512 byte blocks) $path\n";
 				#print "$size -> Sparse Size: $used ($blocks 512 byte blocks) $path\n";
@@ -44,6 +64,10 @@ while (my $line = <>) {
 				}	
 			}
 
+			if ($cache_out_file) {
+				printf ($cache_out_fh "%16x%s\0%16x\n", $size, $fname, $used);
+			}
+			#Sort with ... | LC_ALL=C sort
 
 			my $id="$size\t$fname";
 			if (not $fname =~ /.*[.].*/){
@@ -116,4 +140,7 @@ printf ($fmt, "",      "FILES",      "BYTES");
 printf ($fmt, "RAW",   $files_raw,   $bytes_raw);
 printf ($fmt, "DEDUP", $files_dedup, $bytes_dedup);
 
+if ($cache_out_file) {
+	rename ("$cache_out_file.new", $cache_out_file);
+}
 }}
