@@ -84,7 +84,7 @@ for u in smart; do for DISK in /dev/sd?; do
 		if ! [ -s $PartDir/du.gz ]
 		then 	 
 				echo MP00:
-				MountPoints=`df | grep ^$DEVICE | grep -o '[^ ]*$'` || true # BtrFS may have multiple mountpoints
+				MountPoints=`df | grep ^$DEVICE | grep -o ' /.*$'| sed s/\ //` || true # BtrFS may have multiple mountpoints
 				echo MP0: $MountPoints
 				if echo $MountPoints | egrep ' |media|^$' > /dev/null
 				then
@@ -101,8 +101,9 @@ for u in smart; do for DISK in /dev/sd?; do
 						ID_FS_LABEL=`echo $ID_FS_UUID| grep -o ^......` 
 					fi 
 					mp="/media/$ID_SERIAL_SHORT.$ID_FS_LABEL"
+					[ ! -e "$mp" ] || rmdir "$mp"
 					mkdir "$mp"
-					mount -t auto "$DEVICE" "$mp"
+					mount -t auto "$DEVICE" "$mp" || mount --bind "$MountPoints" "$mp"
 					perl $SCRIPT_DIR/du.pl "$PartDir/du" "$mp"
 					umount "$mp"
 					rmdir "$mp"
