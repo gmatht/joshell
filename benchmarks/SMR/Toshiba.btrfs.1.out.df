@@ -1,0 +1,11 @@
+Filesystem                        1K-blocks       Used Available Use% Mounted on
+/dev/sda1                          90581112   43215444  42741284  51% /
+none                                      4          0         4   0% /sys/fs/cgroup
+udev                                2741196         12   2741184   1% /dev
+tmpfs                                551388       1408    549980   1% /run
+none                                   5120          0      5120   0% /run/lock
+none                                2756920         80   2756840   1% /run/shm
+none                                 102400         36    102364   1% /run/user
+/dev/mapper/vg0-John             2113656752 1075891212 930374976  54% /mnt/John
+/dev/sdb1                          30106576      44992  28509200   1% /media/gandalf/RawSMR
+/dev/mapper/vg0-BenchmarkToshiba  209715200  127499992  80608584  62% /mnt/Benchmarks

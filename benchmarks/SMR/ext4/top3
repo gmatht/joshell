@@ -1,0 +1,14 @@
+top - 09:38:27 up 3 days, 50 min, 10 users,  load average: 2.86, 2.70, 2.67
+Tasks: 250 total,   1 running, 249 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 17.5 us,  1.7 sy,  0.0 ni, 48.4 id, 32.4 wa,  0.0 hi,  0.0 si,  0.0 st
+KiB Mem:   5513844 total,  5387004 used,   126840 free,   305176 buffers
+KiB Swap: 12285948 total,   393028 used, 11892920 free.  2628364 cached Mem
+
+    1 root      20   0   33920   3184   1800 S   0.0  0.1   0:01.60 init                                                                                                                                                                                                    
+16996 root      20   0 2024196 1.865g   5392 D  35.5 35.5 360:08.61 attic                                                                                                                                                                                                   
+10604 root       0 -20       0      0      0 S   1.0  0.0  43:32.89 loop0                                                                                                                                                                                                   
+16302 root      20   0       0      0      0 S   0.7  0.0   1:00.83 RTW_CMD_THREAD                                                                                                                                                                                          
+18989 root      20   0       0      0      0 S   0.7  0.0   0:03.68 kworker/u8:3                                                                                                                                                                                            
+   36 root      20   0       0      0      0 D   0.3  0.0   2:39.38 khubd                                                                                                                                                                                                   
+   42 root      20   0       0      0      0 S   0.3  0.0  25:21.35 kswapd0                                                                                                                                                                                                 
+10092

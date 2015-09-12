@@ -1,0 +1,28 @@
+Filebench Version 1.4.9.1
+26854: 0.000: Allocated 170MB of shared memory
+26854: 0.026: File-server Version 3.0 personality successfully loaded
+26854: 0.026: Creating/pre-allocating files and filesets
+26854: 0.165: Fileset bigfileset: 100000 files, 0 leafdirs, avg dir width = 20, avg dir depth = 3.8, 125104.999MB
+26854: 86.512: Removed any existing fileset bigfileset in 87 seconds
+26854: 86.512: making tree for filset /mnt/Benchmarks//bigfileset
+26854: 86.815: Creating fileset bigfileset...
+26854: 4985.192: Preallocated 80075 of 100000 of fileset bigfileset in 4899 seconds
+26854: 4985.192: waiting for fileset pre-allocation to finish
+27044: 4985.196: Starting 1 filereader instances
+27045: 4985.238: Starting 50 filereaderthread threads
+26854: 4986.255: Running...
+26854: 40989.168: Run took 36000 seconds...
+26854: 40989.204: Per-Operation Breakdown
+statfile1            149436ops        4ops/s   0.0mb/s    698.2ms/op    19394us/op-cpu [0ms - 32702ms]
+deletefile1          149436ops        4ops/s   0.0mb/s   1801.8ms/op    36639us/op-cpu [0ms - 48993ms]
+closefile3           149469ops        4ops/s   0.0mb/s      0.0ms/op      541us/op-cpu [0ms - 17ms]
+readfile1            149469ops        4ops/s   5.9mb/s   3899.5ms/op    88142us/op-cpu [0ms - 43879ms]
+openfile2            149469ops        4ops/s   0.0mb/s   1284.7ms/op    23953us/op-cpu [0ms - 50510ms]
+closefile2           149480ops        4ops/s   0.0mb/s      0.0ms/op      283us/op-cpu [0ms - 85ms]
+appendfilerand1      149480ops        4ops/s   0.0mb/s    691.4ms/op    20111us/op-cpu [0ms - 14236ms]
+openfile1            149480ops        4ops/s   0.0mb/s   1031.0ms/op    24136us/op-cpu [0ms - 50512ms]
+closefile1           149486ops        4ops/s   0.0mb/s      0.0ms/op     1961us/op-cpu [0ms - 85ms]
+wrtfile1             149486ops        4ops/s   6.4mb/s     15.2ms/op     9263us/op-cpu [0ms - 21991ms]
+createfile1          149486ops        4ops/s   0.0mb/s    995.7ms/op    26944us/op-cpu [0ms - 54117ms]
+26854: 40989.204: IO Summary: 1644177 ops, 45.668 ops/s, (4/8 r/w),  12.3mb/s,   2653us cpu/op, 3472.2ms latency
+26854: 40989.204: Shutting down processes

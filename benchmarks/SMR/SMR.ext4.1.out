@@ -1,0 +1,28 @@
+Filebench Version 1.4.9.1
+12031: 0.000: Allocated 170MB of shared memory
+12031: 0.011: File-server Version 3.0 personality successfully loaded
+12031: 0.011: Creating/pre-allocating files and filesets
+12031: 0.149: Fileset bigfileset: 100000 files, 0 leafdirs, avg dir width = 20, avg dir depth = 3.8, 125104.999MB
+12031: 3.501: Removed any existing fileset bigfileset in 4 seconds
+12031: 3.501: making tree for filset /mnt/Benchmarks//bigfileset
+12031: 4.410: Creating fileset bigfileset...
+12031: 2535.564: Preallocated 80075 of 100000 of fileset bigfileset in 2532 seconds
+12031: 2535.564: waiting for fileset pre-allocation to finish
+12139: 2535.573: Starting 1 filereader instances
+12140: 2535.612: Starting 50 filereaderthread threads
+12031: 2536.624: Running...
+12031: 38539.817: Run took 36000 seconds...
+12031: 38539.834: Per-Operation Breakdown
+statfile1            171943ops        5ops/s   0.0mb/s     34.8ms/op     1589us/op-cpu [0ms - 10517ms]
+deletefile1          171943ops        5ops/s   0.0mb/s    732.5ms/op    16244us/op-cpu [0ms - 24096ms]
+closefile3           171943ops        5ops/s   0.0mb/s      0.0ms/op       79us/op-cpu [0ms - 134ms]
+readfile1            171943ops        5ops/s   6.8mb/s   4828.2ms/op   104386us/op-cpu [0ms - 62003ms]
+openfile2            171959ops        5ops/s   0.0mb/s     92.4ms/op     2145us/op-cpu [0ms - 14088ms]
+closefile2           171959ops        5ops/s   0.0mb/s      0.0ms/op      169us/op-cpu [0ms - 82ms]
+appendfilerand1      171959ops        5ops/s   0.0mb/s   1322.9ms/op    25540us/op-cpu [0ms - 28154ms]
+openfile1            171962ops        5ops/s   0.0mb/s     51.1ms/op     2131us/op-cpu [0ms - 11948ms]
+closefile1           171962ops        5ops/s   0.0mb/s      0.1ms/op      478us/op-cpu [0ms - 131ms]
+wrtfile1             171962ops        5ops/s   7.3mb/s   3358.1ms/op   102758us/op-cpu [0ms - 56037ms]
+createfile1          171993ops        5ops/s   0.0mb/s     23.5ms/op     2526us/op-cpu [0ms - 12463ms]
+12031: 38539.834: IO Summary: 1891528 ops, 52.538 ops/s, (5/10 r/w),  14.2mb/s,   1828us cpu/op, 3481.2ms latency
+12031: 38539.834: Shutting down processes

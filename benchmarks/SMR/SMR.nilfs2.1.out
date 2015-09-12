@@ -1,0 +1,8 @@
+Filebench Version 1.4.9.1
+ 8074: 0.000: Allocated 170MB of shared memory
+ 8074: 0.022: File-server Version 3.0 personality successfully loaded
+ 8074: 0.022: Creating/pre-allocating files and filesets
+ 8074: 0.170: Fileset bigfileset: 100000 files, 0 leafdirs, avg dir width = 20, avg dir depth = 3.8, 125104.999MB
+ 8074: 2423.874: Removed any existing fileset bigfileset in 2424 seconds
+ 8074: 2423.891: making tree for filset /mnt/Benchmarks//bigfileset
+ 8074: 2424.517: Creating fileset bigfileset...

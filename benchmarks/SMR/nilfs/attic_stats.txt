@@ -1,0 +1,24 @@
+------------------------------------------------------------------------------
+Archive name: 1
+Archive fingerprint: 268d6bca039309e757ca1483253572286c6e2fab4582f95681c3d5fbf781a3d4
+Start time: Mon Aug 24 00:49:37 2015
+End time: Mon Aug 24 23:02:04 2015
+Duration: 22 hours 12 minutes 26.89 seconds
+Number of files: 1
+
+                       Original size      Compressed size    Deduplicated size
+This archive:                1.00 TB            639.69 GB            515.84 GB
+All archives:              901.92 GB            639.69 GB            515.84 GB
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+Archive name: 2
+Archive fingerprint: 445a2759c95666cda82e969dbda55c10098de9e3a97f42d14033be01f6d073bc
+Start time: Mon Aug 24 23:02:05 2015
+End time: Tue Aug 25 03:32:00 2015
+Duration: 4 hours 29 minutes 54.88 seconds
+Number of files: 1
+
+                       Original size      Compressed size    Deduplicated size
+This archive:                1.00 TB            639.69 GB              9.39 MB
+All archives:                1.80 TB              1.28 TB            515.85 GB
+------------------------------------------------------------------------------

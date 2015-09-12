@@ -1,0 +1,15 @@
+Filebench Version 1.4.9.1
+ 7691: 0.000: Allocated 170MB of shared memory
+ 7691: 0.028: File-server Version 3.0 personality successfully loaded
+ 7691: 0.028: Creating/pre-allocating files and filesets
+ 7691: 0.167: Fileset bigfileset: 100000 files, 0 leafdirs, avg dir width = 20, avg dir depth = 3.8, 125104.999MB
+ 7691: 0.169: Removed any existing fileset bigfileset in 1 seconds
+ 7691: 0.169: making tree for filset /mnt/Benchmarks//bigfileset
+ 7691: 0.333: Creating fileset bigfileset...
+ 7691: 1044.758: Preallocated 80075 of 100000 of fileset bigfileset in 1045 seconds
+ 7691: 1044.758: waiting for fileset pre-allocation to finish
+ 7733: 1044.772: Starting 1 filereader instances
+ 7734: 1044.852: Starting 50 filereaderthread threads
+ 7691: 1045.865: Running...
+ 7691: 7022.420: Run took 5976 seconds...
+ 7691: 7022.420: Shutting down processes

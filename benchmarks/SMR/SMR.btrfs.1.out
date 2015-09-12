@@ -1,0 +1,28 @@
+Filebench Version 1.4.9.1
+ 6619: 0.000: Allocated 170MB of shared memory
+ 6619: 0.020: File-server Version 3.0 personality successfully loaded
+ 6619: 0.020: Creating/pre-allocating files and filesets
+ 6619: 0.159: Fileset bigfileset: 100000 files, 0 leafdirs, avg dir width = 20, avg dir depth = 3.8, 125104.999MB
+ 6619: 6.703: Removed any existing fileset bigfileset in 7 seconds
+ 6619: 6.703: making tree for filset /mnt/Benchmarks//bigfileset
+ 6619: 6.831: Creating fileset bigfileset...
+ 6619: 4209.918: Preallocated 80075 of 100000 of fileset bigfileset in 4204 seconds
+ 6619: 4209.918: waiting for fileset pre-allocation to finish
+ 6812: 4209.922: Starting 1 filereader instances
+ 6813: 4209.958: Starting 50 filereaderthread threads
+ 6619: 4211.972: Running...
+ 6619: 40215.207: Run took 36000 seconds...
+ 6619: 40215.237: Per-Operation Breakdown
+statfile1            208035ops        6ops/s   0.0mb/s      6.7ms/op      459us/op-cpu [0ms - 14728ms]
+deletefile1          208034ops        6ops/s   0.0mb/s    199.8ms/op     2289us/op-cpu [0ms - 58876ms]
+closefile3           208035ops        6ops/s   0.0mb/s      0.0ms/op       64us/op-cpu [0ms - 148ms]
+readfile1            208035ops        6ops/s   8.3mb/s   3315.7ms/op    84359us/op-cpu [0ms - 61577ms]
+openfile2            208039ops        6ops/s   0.0mb/s    182.5ms/op     1768us/op-cpu [0ms - 58833ms]
+closefile2           208039ops        6ops/s   0.0mb/s      0.0ms/op       75us/op-cpu [0ms - 199ms]
+appendfilerand1      208040ops        6ops/s   0.0mb/s   1866.1ms/op    48604us/op-cpu [0ms - 26308ms]
+openfile1            208040ops        6ops/s   0.0mb/s    370.9ms/op     2591us/op-cpu [0ms - 58408ms]
+closefile1           208040ops        6ops/s   0.0mb/s      0.1ms/op      302us/op-cpu [0ms - 200ms]
+wrtfile1             208040ops        6ops/s   8.9mb/s   2606.2ms/op    89414us/op-cpu [0ms - 61028ms]
+createfile1          208085ops        6ops/s   0.0mb/s     72.9ms/op     2468us/op-cpu [0ms - 24127ms]
+ 6619: 40215.237: IO Summary: 2288462 ops, 63.563 ops/s, (6/12 r/w),  17.2mb/s,   3292us cpu/op, 2873.6ms latency
+ 6619: 40215.237: Shutting down processes

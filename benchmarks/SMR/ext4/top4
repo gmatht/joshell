@@ -1,0 +1,13 @@
+top - 22:58:27 up 3 days, 14:10, 10 users,  load average: 3.66, 3.18, 3.05
+Tasks: 250 total,   3 running, 247 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 31.7 us, 34.9 sy,  0.0 ni, 31.6 id,  1.2 wa,  0.0 hi,  0.7 si,  0.0 st
+KiB Mem:   5513844 total,  5366400 used,   147444 free,     7904 buffers
+KiB Swap: 12285948 total,   413552 used, 11872396 free.  3162820 cached Mem
+
+20951 root      20   0 1834680 1.684g   6916 R  61.5 32.0  28:30.88 attic                                                                                                                                                                                                   
+20951 root      20   0 1835960 1.685g   6916 R  69.7 32.0  28:36.79 attic                                                                                                                                                                                                   
+20241 root      20   0       0      0      0 S  12.9  0.0   2:40.35 kworker/u8:0                                                                                                                                                                                            
+20953 root      20   0       0      0      0 S  12.6  0.0   2:08.00 kworker/u8:1                                                                                                                                                                                            
+20956 root      20   0       0      0      0 S  12.2  0.0   1:54.93 kworker/u8:6                                                                                                                                                                                            
+20787 root      20   0       0      0      0 S  11.6  0.0   2:22.45 kworker/u8:2                                                                                                                                                                                            
+20954 root      20   0       0      0      0 S   6.6  0.0   2:05.17 kworker/u8:3                

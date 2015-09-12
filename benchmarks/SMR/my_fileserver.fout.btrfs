@@ -1,0 +1,28 @@
+Filebench Version 1.4.9.1
+ 5125: 0.000: Allocated 170MB of shared memory
+ 5125: 0.018: File-server Version 3.0 personality successfully loaded
+ 5125: 0.018: Creating/pre-allocating files and filesets
+ 5125: 0.157: Fileset bigfileset: 100000 files, 0 leafdirs, avg dir width = 20, avg dir depth = 3.8, 125104.999MB
+ 5125: 0.159: Removed any existing fileset bigfileset in 1 seconds
+ 5125: 0.159: making tree for filset /mnt/Benchmarks//bigfileset
+ 5125: 0.290: Creating fileset bigfileset...
+ 5125: 549.170: Preallocated 80075 of 100000 of fileset bigfileset in 549 seconds
+ 5125: 549.170: waiting for fileset pre-allocation to finish
+ 5156: 549.175: Starting 1 filereader instances
+ 5157: 549.234: Starting 50 filereaderthread threads
+ 5125: 552.229: Running...
+ 5125: 36555.945: Run took 36000 seconds...
+ 5125: 36555.979: Per-Operation Breakdown
+statfile1            217101ops        6ops/s   0.0mb/s      1.7ms/op      339us/op-cpu [0ms - 8108ms]
+deletefile1          217101ops        6ops/s   0.0mb/s    177.8ms/op     1769us/op-cpu [0ms - 60990ms]
+closefile3           217101ops        6ops/s   0.0mb/s      0.0ms/op       59us/op-cpu [0ms - 29ms]
+readfile1            217101ops        6ops/s   8.7mb/s   3214.5ms/op    82283us/op-cpu [0ms - 67162ms]
+openfile2            217114ops        6ops/s   0.0mb/s    179.4ms/op     1347us/op-cpu [0ms - 60836ms]
+closefile2           217114ops        6ops/s   0.0mb/s      0.0ms/op       69us/op-cpu [0ms - 147ms]
+appendfilerand1      217114ops        6ops/s   0.0mb/s   1742.7ms/op    46742us/op-cpu [0ms - 26869ms]
+openfile1            217123ops        6ops/s   0.0mb/s    399.4ms/op     2371us/op-cpu [0ms - 59893ms]
+closefile1           217123ops        6ops/s   0.0mb/s      0.1ms/op      194us/op-cpu [0ms - 207ms]
+wrtfile1             217123ops        6ops/s   9.3mb/s   2541.0ms/op    94322us/op-cpu [0ms - 52414ms]
+createfile1          217151ops        6ops/s   0.0mb/s      4.0ms/op      422us/op-cpu [0ms - 19395ms]
+ 5125: 36555.979: IO Summary: 2388266 ops, 66.334 ops/s, (6/12 r/w),  18.0mb/s,   3027us cpu/op, 2753.5ms latency
+ 5125: 36555.979: Shutting down processes

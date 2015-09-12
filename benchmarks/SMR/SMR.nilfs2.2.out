@@ -1,0 +1,8 @@
+Filebench Version 1.4.9.1
+ 8213: 0.000: Allocated 170MB of shared memory
+ 8213: 0.049: File-server Version 3.0 personality successfully loaded
+ 8213: 0.050: Creating/pre-allocating files and filesets
+ 8213: 0.200: Fileset bigfileset: 100000 files, 0 leafdirs, avg dir width = 20, avg dir depth = 3.8, 125104.999MB
+ 8213: 525.796: Removed any existing fileset bigfileset in 526 seconds
+ 8213: 525.796: making tree for filset /mnt/Benchmarks//bigfileset
+ 8213: 526.081: Creating fileset bigfileset...

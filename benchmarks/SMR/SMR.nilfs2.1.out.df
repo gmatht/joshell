@@ -1,0 +1,10 @@
+Filesystem                    1K-blocks       Used Available Use% Mounted on
+/dev/sda1                      90581112   44836936  41119792  53% /
+none                                  4          0         4   0% /sys/fs/cgroup
+udev                            2741196         12   2741184   1% /dev
+tmpfs                            551388       1420    549968   1% /run
+none                               5120          0      5120   0% /run/lock
+none                            2756920     294084   2462836  11% /run/shm
+none                             102400         32    102368   1% /run/user
+/dev/mapper/vg0-John         2113656752 1075891212 930374976  54% /mnt/John
+/dev/mapper/vg0-BenchmarkSMR  209707004  199204860     16384 100% /mnt/Benchmarks
