@@ -1,0 +1,3 @@
+#PURPOSE: add a note/comment about a drive
+cd /var/lib/ofm
+vim `ls -t | head -n1`/not.txt
