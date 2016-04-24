@@ -20,6 +20,20 @@ These utilities are very restricted and experimental.
 
 [mydeep.media](mydeep.media): This creates sha256sums lists for removable media and keeps records of smartctl information to help identify the media later. 
 
+## Example Commands
+
+`perl ~/prj/joshell/mass_file_management/parse_du.pl `find -L . | grep du.gz$` -f ./gmatht/LHAA1102241905581561/1/du.gz`
+
+Find out what files would be lost if LHAA1102241905581561 failed
+
+`find -L . | grep /udevadm.disk.txt | sed s,/udevadm.disk.txt,, | while read f; do [ -z "`find -L $f -name du.gz`" ] && echo $f; done`
+
+find partitions that don't have du.gz's
+
+## TODO
+
+Update parse_du to new parse_du.pl
+
 ## Other programs
 
 ### rsync
@@ -50,3 +64,5 @@ However they seem to be all limited in two ways:
 Unlike the other utilities [archivefs](https://code.google.com/p/archivefs/) not only keeps a record of hashes, but also keep that record up-to-date. 
 
 This is handy. It is designed primarily for deduplication rather than file management. It is not completely trivial to e.g. compare two archivefs filesystems.
+
+
