@@ -1,0 +1,18 @@
+export SCRIPT_DIR=$(dirname `readlink -f $0`)
+
+if [ -z "$1" ]
+then
+	echo "usage: $0 [command]"
+	echo -- commands --
+	cd $SCRIPT_DIR
+	ls ofm_* | while read f
+	do
+		echo -n $f: | sed s/^ofm_//
+		echo "	"`grep '#PURPOSE: ' $f | sed s/'#PURPOSE: '//`
+	done
+	exit
+fi
+
+command=$1
+shift
+exec "$SCRIPT_DIR/ofm_$command" $@
