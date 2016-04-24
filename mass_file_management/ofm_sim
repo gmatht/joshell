@@ -1,5 +1,5 @@
-#Find out which disks contain similar files.
-
+#!/bin/bash
+#PURPOSE: Find out which disks contain similar files.
 
 DIR=`dirname $0`
 #find disks that aren't missing du.gz

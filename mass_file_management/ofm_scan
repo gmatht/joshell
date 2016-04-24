@@ -1,4 +1,6 @@
 #!/bin/bash
+#PURPOSE: Add data on all attached drives
+
 #This is a script to keep sha256sums of files all removable media.
 #This also keeps identifying information about the disk to help you
 #remember which disk it refers to.
@@ -66,7 +68,12 @@ for u in smart; do for DISK in /dev/sd?; do
 	DEVICE=NULL
 	UUID=NULL
 	ID_SERIAL_SHORT=NO_SERIAL
-	eval $(udevadm info --query=property --name=$DISK | grep ^ID_SERIAL_SHORT=)
+	ID_SERIAL=NO_SERIAL
+	#eval $(udevadm info --query=property --name=$DISK | grep ^ID_SERIAL_SHORT=)
+	#ID_SERIAL may collide if using a USB adapter for a removed harddisk
+	eval $(udevadm info --query=property --name=$DISK | grep ^ID_SERIAL=)
+	ID_SERIAL_SHORT=$ID_SERIAL
+
 	mkdir -p $dir/$ID_SERIAL_SHORT
 	[ -s $dir/$ID_SERIAL_SHORT/udevadm.disk.txt ] || udevadm info --query=property --name=$DISK > $dir/$ID_SERIAL_SHORT/udevadm.disk.txt
 	[ -s $dir/$ID_SERIAL_SHORT/smartctl.txt ] || smartctl -i $DISK > $dir/$ID_SERIAL_SHORT/smartctl.txt
