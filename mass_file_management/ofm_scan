@@ -78,9 +78,9 @@ for u in smart; do for DISK in /dev/sd?; do
 	[ -s $dir/$ID_SERIAL_SHORT/udevadm.disk.txt ] || udevadm info --query=property --name=$DISK > $dir/$ID_SERIAL_SHORT/udevadm.disk.txt
 	[ -s $dir/$ID_SERIAL_SHORT/smartctl.txt ] || smartctl -i $DISK > $dir/$ID_SERIAL_SHORT/smartctl.txt
 	#echo $HOSTNAME > $dir/$ID_SERIAL_SHORT/HOSTNAME
-	for DEVICE in $DISK?*
+	( for DEVICE in $DISK?*
 	do
-		echo $u $DISK $DEVICE 
+		echo $u $DISK $DEVICE $ID_SERIAL_SHORT
 		PART=$(echo $DEVICE | sed s,^$DISK,,)
 		PartDir=$dir/$ID_SERIAL_SHORT/$PART
 		#eval $(udevadm info --query=property --name=$DEVICE | grep ^MINOR=)
@@ -105,7 +105,7 @@ for u in smart; do for DISK in /dev/sd?; do
 					if [ -z "$ID_FS_LABEL" ]
 					then
 						#echo ID_FS_LABEL=`echo $UUID| grep -o ^......` 
-						ID_FS_LABEL=`echo $ID_FS_UUID| grep -o ^......` 
+						ID_FS_LABEL=`echo $ID_FS_UUID| grep -o ^...... || echo "$PART"` 
 					fi 
 					mp="/media/$ID_SERIAL_SHORT.$ID_FS_LABEL"
 					[ ! -e "$mp" ] || rmdir "$mp"
@@ -123,7 +123,7 @@ for u in smart; do for DISK in /dev/sd?; do
 			 
 			#| tee $PartDir/du.txt.tmp | sed 's/$/                            /' | grep -o '^.\{'$COLS'\}'|tr '\n\t' '\r '  && mv $PartDir/du.txt.tmp $PartDir/du.txt
 		fi
-	done &
+	done ; echo END $DISK ) &
 done  #DISK 
 done
 
