@@ -65,6 +65,7 @@ update_deep () {
 #for u in smart deep ; do for DISK in /dev/sd?; do
 for u in smart; do for DISK in /dev/sd?; do
 #for u in smart ; do for f in * ; do
+	baseDISK=$(basename $DISK)
 	DEVICE=NULL
 	UUID=NULL
 	ID_SERIAL_SHORT=NO_SERIAL
@@ -75,6 +76,19 @@ for u in smart; do for DISK in /dev/sd?; do
 	ID_SERIAL_SHORT=$ID_SERIAL
 
 	mkdir -p $dir/$ID_SERIAL_SHORT
+	if [ -e $dir/$ID_SERIAL_SHORT/size512.txt ]
+	then
+		# Do a quick sanity check
+		if [ `cat /sys/class/block/$baseDISK/size` != `cat $dir/$ID_SERIAL_SHORT/size512.txt` ]
+		then
+			 echo SIZE MISMATCH! /sys/class/block/$baseDISK/size $dir/$ID_SERIAL_SHORT/size512.txt
+			 exit
+		fi
+	else
+		cp /sys/class/block/$baseDISK/size $dir/$ID_SERIAL_SHORT/size512.txt
+	fi
+
+	cat /sys/class/block/sda/size
 	[ -s $dir/$ID_SERIAL_SHORT/udevadm.disk.txt ] || udevadm info --query=property --name=$DISK > $dir/$ID_SERIAL_SHORT/udevadm.disk.txt
 	[ -s $dir/$ID_SERIAL_SHORT/smartctl.txt ] || smartctl -i $DISK > $dir/$ID_SERIAL_SHORT/smartctl.txt
 	#echo $HOSTNAME > $dir/$ID_SERIAL_SHORT/HOSTNAME
@@ -122,6 +136,8 @@ for u in smart; do for DISK in /dev/sd?; do
 			#) | tee >(gzip --stdout > $PartDir/du.txt.gz.tmp) | sed 's/$/                            /' grep -o '^.\{'$COLS'\}' |tr '\n' '\r' && mv $PartDir/du.txt.gz.tmp $PartDir/du.txt.gz
 			 
 			#| tee $PartDir/du.txt.tmp | sed 's/$/                            /' | grep -o '^.\{'$COLS'\}'|tr '\n\t' '\r '  && mv $PartDir/du.txt.tmp $PartDir/du.txt
+		else
+			echo Already Exists: $PartDir/du.gz
 		fi
 	done ; echo END $DISK ) &
 done  #DISK 

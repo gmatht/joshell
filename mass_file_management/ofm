@@ -2,6 +2,7 @@ export SCRIPT_DIR=$(dirname `readlink -f $0`)
 
 if [ -z "$1" ]
 then
+	echo "OfflineFileManager v0.01"
 	echo "usage: $0 [command]"
 	echo -- commands --
 	cd $SCRIPT_DIR
