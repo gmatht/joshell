@@ -16,4 +16,13 @@ fi
 
 command=$1
 shift
-exec "$SCRIPT_DIR/ofm_$command" $@
+if [ -e "$SCRIPT_DIR/ofm_$command" ]
+then
+	exec "$SCRIPT_DIR/ofm_$command" $@
+else 
+	if [ "`ls $SCRIPT_DIR/ofm_$command* | wc -l`" = 1  ]
+	then
+		exec "$SCRIPT_DIR/ofm_$command"* $@
+	fi
+fi
+		
