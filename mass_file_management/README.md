@@ -13,6 +13,7 @@ Example of Use:
 6. run `ofm grep .vimrc` to look for your vimrc files
 7. run `ofm sim` to see which drives have similar contents
 8. run `ofm df` to see how much free space each device has
+9. run `ofm fail foo bar` to see files lost if drives foo and bar fail
 
 ## Background
 I have many different disks (primarily harddisks) storing various files. I want to know that they are all backed up in some form. Given that I have terabytes of files somehow (backups of backups apparently) I don't want to just backup everything onto new media yet again.  I'd like a utility that allows me to copy all files on X that do not yet exist on Y to Y, that is also well suited to tasks such as:
