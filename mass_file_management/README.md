@@ -3,7 +3,8 @@ Offline File Manager
 
 Most file managers assume relevant files are presently accessible. This utility instead stores file info in `/var/lib/ofm`. This allows us to find files and generate stats on disconnected drives.
 
-Example of Use: 
+Example of Use:
+
 1. Attach some removable drives to your machine and run `ofm scan`
 2. Repeat 1. as required
 3. run `ofm p` to get an idea how much data you actually have
