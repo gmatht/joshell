@@ -52,6 +52,7 @@ sub print_dq_string{
 
 while(my $L = <>) {
 	if ($L =~ s/^ *use  *integer *; *//) { $NUM_TYPE="int"; }
+	#if ($L =~ s/^ *use  *integer *; *//) { $NUM_TYPE="long long"; }
 	if ($L =~ s/^ *no  *integer *; *//) { $NUM_TYPE="double"; }
 	if ($L =~ s/^ *use  *[[:alnum:]]+ *; *//) { }
 
