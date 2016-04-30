@@ -1,0 +1,4 @@
+#!/bin/bash
+#PURPOSE: Search for files
+cd /var/lib/ofm
+zgrep -H "$@" `find -L . -name du.gz | sed s,^[.]/,,` | perl -pe 's/\t([\d]{10})\t/"\t".(localtime $1)."\t"/eg;'
