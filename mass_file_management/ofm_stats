@@ -7,7 +7,7 @@ sed s/^[^:]*:// < Files1GB.txt  | sort -rn | head -n20
 #	echo PROCESSING: "$f" 1>&2 
 #	zcat "$f"
 #done | time perl $SCRIPT_DIR/parse_du.pl | tee parse_du.log
-time perl $SCRIPT_DIR/parse_du.pl `find -L /var/lib/ofm | grep du.gz$`
+time perl $SCRIPT_DIR/parse_du.pl "$@" `find -L /var/lib/ofm | grep du.gz$` 
 
 < parse_du.log | grep "^[0-9]" | sort -n 
 

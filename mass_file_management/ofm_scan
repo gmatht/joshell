@@ -91,6 +91,8 @@ for u in smart; do for DISK in /dev/sd?; do
 	cat /sys/class/block/sda/size
 	[ -s $dir/$ID_SERIAL_SHORT/udevadm.disk.txt ] || udevadm info --query=property --name=$DISK > $dir/$ID_SERIAL_SHORT/udevadm.disk.txt
 	[ -s $dir/$ID_SERIAL_SHORT/smartctl.txt ] || smartctl -i $DISK > $dir/$ID_SERIAL_SHORT/smartctl.txt
+	(echo $HOSTNAME; ifconfig | perl -e 'while(<>){if (/inet addr:([0-9.]*)/){print "$1\n";exit}}'; cat /proc/cpuinfo | grep model.name | head -n1 | sed s/.*:.//) > "$dir/$ID_SERIAL_SHORT/host.txt"
+	#system("$SCRIPT_DIR/hostinfo.sh >> $dir/$ID_SERIAL_SHORT/host.txt");
 	#echo $HOSTNAME > $dir/$ID_SERIAL_SHORT/HOSTNAME
 	( for DEVICE in $DISK?*
 	do

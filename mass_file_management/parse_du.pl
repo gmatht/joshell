@@ -6,6 +6,7 @@ my %sparse_used =();
 my %failed_parts = (); # A set of failed partitions
 our $failed;
 $|=1; #Always flush STDOUT, perhaps useful for debugging only?:
+my $grep = 0;
 
 $failed = 0;
 foreach $a (@ARGV) {
@@ -14,8 +15,8 @@ foreach $a (@ARGV) {
 		print STDERR "Outputing cache file $cache_out_file\n";
 		#open(our $cache_out_fh, ">", "$cache_out_file.new") or die ("Cannot open '$cache_out_file' for writing");
 		open(my $cache_out_fh, "|-" , "gzip > $cache_out_file.new") or die "Cannot open Cache pipe :(";
-	} elsif ( $a =~ /-f/ ) {
-		$failed = 1;
+	} elsif ( $a =~ /-f/ ) { $failed = 1;
+	} elsif ( $a =~ /-g/ ) { my $b=$a; $b=~s/^..//; $grep=qr/$b/; 
 	} else {
 		if($failed) {
 			$failed_parts{$a}=(); 
@@ -33,6 +34,7 @@ foreach $a (@ARGV) {
 	} elsif ( $a =~ /-f/ ) {
 		print "BXX$failed|$a\n";
 		$failed = 1;
+	} elsif ( $a =~ /-g/ ) {  
 	} else {
 		print "CXX$failed|$a\n";
 		if ($failed or not exists $failed_parts{$a}) {
@@ -47,6 +49,7 @@ sub parsefile {
 	open(my $du_file, "-|" , "gunzip < @_[0]") or die "Cannot open file pipe :(";
 	my $lastpath="";
 	while (my $line = <$du_file>) {
+		if ($grep and not $line =~ /$grep/) {next}
 		if ($line =~ /([^\t]*)\t([^\t]*)\t([^\n\r]*)/) {
 			my $size=$1; my $date=$2; my $path=$3;
 			my $isdir=0;
