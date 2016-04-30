@@ -18,7 +18,7 @@ do
 	sleep 0.3
 	(losetup -d /dev/loop1; losetup -d /dev/loop2) || true
 	losetup /dev/loop2 2.btrfs; losetup /dev/loop1 1.btrfs; mount /dev/loop1 /mnt/btrfs/
-	for i in `seq 10 15` 20
+	for i in `seq 10 15` 20 26
 	do
 		siz=$((2**i))
 		dd if=/dev/zero bs=$siz count=1 of=/mnt/btrfs/$i.$raid.zero
