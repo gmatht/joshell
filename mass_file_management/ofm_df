@@ -2,7 +2,7 @@
 #PURPOSE: List disk free amounts for each partition
 (
 	df -h | head -n1
-	grep -v ^Filesystem `find -L H /var/lib/ofm -name df.txt` | grep -v ^Filesystem | sed 's,/var/lib/ofm,,' | perl human.pl
+	grep -v ^Filesystem `find -L H /var/lib/ofm -name df.txt` | grep -v ^Filesystem | sed 's,/var/lib/ofm,,' | perl $SCRIPT_DIR/human.pl
 ) | sed ' s/  */\t/
 s/  */\t/
 s/  */\t/
