@@ -1,6 +1,19 @@
-Mass File Management that Caches File IDs
+Offline File Manager
 =======
 
+Most file managers assume relevant files are presently accessible. This utility instead stores file info in `/var/lib/ofm`. This allows us to find files and generate stats on disconnected drives.
+
+Example of Use: 
+1. Attach some removable drives to your machine and run `ofm scan`
+2. Repeat 1. as required
+3. run `ofm p` to get an idea how much data you actually have
+4. run `ofm p -g/Documents/` to see how many Documents you have
+5. run `ofm grep -i /Documents/ | column -t` to list all Documents in pretty columns
+6. run `ofm grep .vimrc` to look for your vimrc files
+7. run `ofm sim` to see which drives have similar contents
+8. run `ofm df` to see how much free space each device has
+
+## Background
 I have many different disks (primarily harddisks) storing various files. I want to know that they are all backed up in some form. Given that I have terabytes of files somehow (backups of backups apparently) I don't want to just backup everything onto new media yet again.  I'd like a utility that allows me to copy all files on X that do not yet exist on Y to Y, that is also well suited to tasks such as:
 
 1. To list all files on X that are not duplicated/backed up on other media
