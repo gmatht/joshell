@@ -1,0 +1,24 @@
+#based on ofm_parse
+#PURPOSE: List files that would be lost if listed drives fail
+if [ -z "$1" ]
+then
+	echo usage: ofm fail DISK1_REGEX DISK2_REGEX ...
+	echo Lists the files that would be lost if all disks matching any of the supplied regex fail.
+	echo 'You can see all the disk names by running "ofm df", the names are to the left'
+fi
+regex="($1"
+while [ ! -z "$2" ]
+do
+	shift
+	regex="$regex|$1"
+done
+regex="$regex)"
+failed_disks=`find -L /var/lib/ofm -name du.gz | egrep "$regex"`
+echo -- SIMULATING FAILURE OF FOLLOWING DISKS --
+echo $failed_disks | tr ' ' '\n'
+echo -- FILES LOST --
+#time perl $SCRIPT_DIR/parse_du.pl "$@" `find -L /var/lib/ofm -name du.gz` -f `find -L /var/lib/ofm -name du.gz | grep "$regex" ` | grep ^FAILED:
+time perl $SCRIPT_DIR/parse_du.pl `find -L /var/lib/ofm -name du.gz` -f $failed_disks | grep '\(^FAILED:\|-- FINISHED\)'
+
+
+

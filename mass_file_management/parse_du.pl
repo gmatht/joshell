@@ -127,6 +127,8 @@ sub parsefile {
 		
 	}
 }
+
+print "-- FINISHED --";
 	
 sub commify {
 	my $input = shift;
