@@ -15,6 +15,8 @@ Example of Use:
 8. run `ofm df` to see how much free space each device has
 9. run `ofm fail foo bar` to see files lost if drives foo and bar fail
 
+Please be patient. Queries on 10 million files take a couple of minutes to complete.
+
 ## Background
 I have many different disks (primarily harddisks) storing various files. I want to know that they are all backed up in some form. Given that I have terabytes of files somehow (backups of backups apparently) I don't want to just backup everything onto new media yet again.  I'd like a utility that allows me to copy all files on X that do not yet exist on Y to Y, that is also well suited to tasks such as:
 
