@@ -14,8 +14,20 @@ hash pip3 ||
 pip3 install neovim
 
 #install plug.vim
- 
 [ -s  ~/.config/nvim/autoload/plug.vim ] || curl -fLo  ~/.config/nvim/autoload/plug.vim --create-dirs http://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+
+#Java
+#We can just use an old version of javacomplete that doesn't need jdk8
+true || java -version 2>&1 | grep 1.8 || sudo apt-get install openjdk-8-jdk || 
+	java -version 2>&1 | grep 1.8 || (
+	sudo add-apt-repository ppa:webupd8team/java -y
+	sudo apt-get update
+	sudo apt-get install oracle-java8-installer
+	sudo apt-get install oracle-java8-set-default
+)
+
+#perldoc
+sudo apt-get install perl-doc
 
 #This doesn't seem to always work? Do it twice to make sure
 nvim -u vim_ide.nvimrc +"PlugInstall" +UpdateRemotePlugins +qall

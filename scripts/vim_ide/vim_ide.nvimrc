@@ -1,4 +1,7 @@
+
+filetype on
 filetype plugin on
+filetype indent on
 
 call plug#begin('~/.vim/plugged')
 
@@ -29,6 +32,9 @@ Plug 'nsf/gocode', { 'tag': 'v.20150303', 'rtp': 'vim' }
 " Plugin outside ~/.vim/plugged with post-update hook
 Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' }
 
+" Use an older version that doesn't require Java 8 
+" Plug 'Shougo/vim-javacomplete2'
+Plug 'Shougo/javacomplete'
 
 function! DoRemote(arg)
   UpdateRemotePlugins
@@ -41,6 +47,13 @@ Plug 'let-def/ocp-indent-vim'
 
 " Unmanaged plugin (manually installed and updated)
 Plug '~/my-prototype-plugin'
+
+Plug 'vim-perl/vim-perl', { 'for': 'perl', 'do': 'make clean carp dancer highlight-all-pragmas moose test-more try-tiny' }
+Plug 'c9s/perlomni.vim'
+
+
+" You may also want:
+" http://github.com/zchee/deoplete-clang 
 
 " Add plugins to &runtimepath
 call plug#end()
@@ -85,4 +98,9 @@ call remote#host#RegisterPlugin('python3', '/home/john/.vim/plugged/deoplete.nvi
 set rtp+=/usr/local/share/ocamlmerlin/vim
 filetype plugin indent on
 
-
+" automatically add semi-colons in Perl
+autocmd FileType pl,perl inoremap <CR> <C-R>=match(getline('.'), '\(.*[{}&;]\\|^\s*$\)')==-1?';':''<CR><CR>
+" To unmap <F1> in xfce-terminal see http://superuser.com/questions/562069/disable-f1-on-xfce-terminal
+autocmd FileType pl,perl nnoremap <F1> :execute "!".$VIM_IDE.".perldoc_wrapper.sh ".shellescape(expand("<cword>"), 1)<CR>
+"autocmd FileType pl,perl map <F1> <ESC>:syntax off<CR>:execute "r!".$VIM_IDE.".perldoc_wrapper.sh ".shellescape(expand("<cword>"), 1)<CR>:syntax on
+autocmd FileType pl,perl map <F1> <ESC>:execute "!".$VIM_IDE.".perldoc_wrapper.sh ".shellescape(expand("<cword>"), 1)<CR>
