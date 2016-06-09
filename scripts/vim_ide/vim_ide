@@ -1,12 +1,3 @@
 #!/bin/bash
-case "$1" in
-*.ml)
-	. ~/.opam/opam-init/init.sh
-	vim -u <(echo source /usr/share/vim/vimrc; cat $0.vimrc) "$@"
-	echo vim -u <(echo source /usr/share/vim/vimrc; cat $0.vimrc) "$@"
-;;
-*)
-	echo nvim -u $0.nvimrc "$@"
-	nvim -u `readlink -f $0`.nvimrc "$@"
-;;
-esac
+. ~/.opam/opam-init/init.sh
+PATH="/usr/local/bin/:$PATH" nvim -u $0.nvimrc "$@"
