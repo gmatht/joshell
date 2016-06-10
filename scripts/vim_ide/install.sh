@@ -36,15 +36,19 @@ nvim -u vim_ide.nvimrc +"PlugInstall" +UpdateRemotePlugins +qall
 echo About to install OCaml support. Press Enter to Continue, or Ctrl-C to quit
 read
 
-### for OCaml ###
+#vvv BEGIN OCaml vvv#
 #* ocp-indent
+if command -v ocaml ocamlc ocamlopt ocamlopt.opt
+then 
+echo OCaml detected, installing ocp-indent and merlin
+
 sudo apt-get install python-dev python-pip python3-dev opam pkg-config camlp4
 [ -e ~/.opam ] || opam init https://opam.ocaml.org/`opam --version|grep -o ^...`
 eval `opam config env`
 # On Ubuntu 16.04, installing camlp4 via opam break
 opam pin add camlp4 /usr/bin/camlp4
 opam install ocp-indent
-vim -u vim_ide.vimrc +"PlugInstall" +qall
+nvim -u vim_ide.nvimrc +"PlugInstall" +qall
 
 ## Merlin 
 # Current opam version of Merlin only supports python2
@@ -63,6 +67,9 @@ vim -u vim_ide.vimrc +"PlugInstall" +qall
 	sudo make install
 	PATH="/usr/local/bin/:$PATH" nvim -u vim_ide.nvimrc
 )
+else echo OCaml not detected, skipping ocaml support
+fi
+#^^^ BEGIN OCaml ^^^#
 
 #We didn't seem to need to do the following with the new merlin:
 #echo ':execute "helptags " . g:opamshare . "/merlin/vim/doc" | nvim
