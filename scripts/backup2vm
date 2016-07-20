@@ -1,0 +1,172 @@
+#!/bin/bash
+# A script to do a full disk backup
+#
+# Benchmark results on 
+# Intel(R) Celeron(R) CPU G1610 @ 2.60GHz
+# Backup from Linux install with a 50G ext4 partition with 28.8GB used to ext4 
+#
+# SPEED(pv)	SIZE	COMMAND                                          
+# 1GB/min	14??	partclone.ext4 -c -s /dev/sdb1 | gzip -c > bb1.gz
+# 2GB/min	14.7	partclone.ext4 -c -s /dev/sdb1 | pigz -c > bb1.gz
+# 3GB/min	15.9	backup2vm.sh bb sdb
+
+set -e 
+set -x
+BACKUP_NAME=$1
+
+if [ -z "$1" ]
+then
+	echo "---------------------------------------------------------------
+BACKUP2VM Version 0.1
+
+This backup script is designed to backup your hard-disk to a qcow2 image
+which can be booted in qemu or mounted using qemu-nbd.
+
+Unlike many other backup utilities this does all of:
+0) does a backup of the disk including partition layout etc.,
+1) makes the data easy to access without having to decompress it all,
+2) compresses the data to reduce space requirements, and also
+3) avoids backing up unused sectors.
+
+Usage: $0 DEST Device1 [Device2 [Device 3 ... ]]
+
+Example: 
+	$0 FOO sda
+will backup /dev/sda to FOO.sda.qcow2
+
+You can use also this command to backup direct to sshfs, though it creates
+about twice as much network traffic as you might expect.
+
+(c) 2014 John McCabe-Dansted.  Permission is given to distribute this
+under the terms of the FSF GPLv2/LGPLv2 or later.
+
+This is HIGHLY EXPERIMENTAL and has NEVER been tested on a real system.
+Use at your own risk.
+"
+	exit 1
+fi
+
+
+#qemu-nbd -d /dev/nbd0 > /dev/null || true #clean up previous failures...
+
+#BEGIN LOOPING OVER DEVICES TO BACKUP
+cmdline="$*"
+while shift
+do
+
+if [ -z "$1" ]
+then
+	break
+fi
+
+if [ ! -e /dev/$1 ]
+then
+	echo "/dev/$1 does not seem to exist"
+	exit 
+fi
+
+#if
+#> /dev/null
+ls "/dev/$1"?* || ( 
+	echo "/dev/$1 doesnt seem to have any partitions"
+	exit 1
+)
+
+which partclone.ext4 > /dev/null ||
+	apt-get install partclone
+
+DEV=$1
+BACKUP_BASE=$BACKUP_NAME.$DEV
+BACKUP=$BACKUP_BASE.btrfs
+MOUNT=/run/mount_btrfs
+IMAGE="$MOUNT"/disk_image
+LOOP_NUMBER=6
+LOOP=/dev/loop$LOOP_NUMBER # Lets hope no-one else is using this ...
+losetup -d $LOOP || true
+umount $MOUNT || true
+rmdir $MOUNT || true
+
+#Create a compressed dynamic Virtual Machine HDD
+size_in_blocks=`fdisk -s /dev/$DEV` || (
+	echo "Cannot read size of partition"
+	if [ "$USER" != "root" ]
+	then
+		echo "
+try:
+	sudo $0 $cmdline
+"
+	fi
+	exit 1
+)
+
+# ASSUME SIZE IN BLOCKS IS k
+			 
+truncate -s "$size_in_blocks"k $BACKUP 
+   #Should have fall back if overhead means that size of backup is larger than size of drive
+   #Perhaps just dd the whole drive.
+mkfs.btrfs $BACKUP
+mkdir $MOUNT
+mount $BACKUP $MOUNT -o rw,compress-force=zlib
+truncate -s "$size_in_blocks"k $IMAGE
+#Perhaps we should copy more than 512 bytes... I think windows programs like to
+#hide stuff round here. Also, what about GPT?
+losetup $LOOP $IMAGE
+dd bs=512 count=1 if=/dev/$DEV of=$LOOP
+partprobe $LOOP
+echo partprobe $LOOP
+#Repeat for each partition:
+for src in /dev/$DEV""?* 
+do
+	out=`echo "$src" | sed s/$DEV/"loop$LOOP_NUMBER"p/` #FIXME remove hardcoding
+
+	test -e $out || ( echo "Can't find $out"; exit 1)
+
+	#The partition won't be mounted
+	#And if it is it will partclone will autofail anyway
+	umount $src || true  
+
+	fs=`blkid $src |
+		perl -e 'if (<STDIN> =~ /TYPE="([[:alnum:]]*)"/){print $1}'`
+	case fs in
+	swap)
+		#dd count=2 bs=4096 ... would work but not as safe?
+		#... particularly if we implement resizing?
+		#Is this good enough? What if we are hibernated?
+		#COMPLETELY UNTESTED:
+
+		options=`blkid $src |
+			perl -e '$s=<STDIN>;
+                        if ($s =~ /LABEL=("[^"]*")/){print " -L $1 "}
+                        if ($s =~ /UUID=("[^"]*")/){print " -U $1 "}'`
+		mkswap $options $out
+		;;
+	*)
+		partclone.$fs -I -b -s $src -o $out ||
+		partclone.$fs -I -b -s `echo $src | sed s/dev/run/` -o $out ||
+		 partclone.dd -b -s $src -o $out
+		 #This will fall back to dd if (1) the fs is unsupported or
+		 #(2) it is uncleanly mounted
+		 #Perhaps we should run fsck in case of (2) instead?
+
+		;;
+	esac
+done
+
+#umount $MOUNT
+#rmdir $MOUNT || true
+
+done
+#END LOOPING OVER DEVICES TO BACKUP
+
+echo "syncing"
+set -o monitor
+(watch -n1 grep Dirty /proc/meminfo) & 
+	cPID=$!
+	job=`jobs -l | sed s/]//g | sed s/[[]// | grep [0-9]*+ | grep [0-9]* -o | head -n1`
+	(sync ; kill $cPID)&
+	fg %"$job"
+
+stty sane
+
+ls $BACKUP_NAME* -lh
+echo "Backup2VM Finished Successfully"
