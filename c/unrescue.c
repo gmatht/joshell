@@ -8,10 +8,11 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
-
+#include <string.h>
 
 #define BUFFER_SIZE 0x1000000
 char buffer[BUFFER_SIZE];
+char zero[BUFFER_SIZE];
 
 long long min(long long x, long long y) {
     if (x<y) return x; else return y;
@@ -28,6 +29,7 @@ int main() {
   int i;
   char c;
   int dev=3;
+  memset(&buffer, 0, BUFFER_SIZE);
   while (getchar() != EOF) {  
     getchar();
     i=scanf("%llx  %llx  %c\n",&pos,&size,&c);
@@ -35,8 +37,9 @@ int main() {
     if (c=='?') continue;
     if (c!='+') die("c");
     while (at<pos) {
-      at++;
-      putc(0,stdout);
+      long long bytes = fwrite(&zero, 1, min(BUFFER_SIZE,(pos-at)), stdout);
+      if (!bytes) die("write zeros");
+      at+=bytes;
     }
     at=lseek(dev, pos, SEEK_SET);
     if (at!=pos) die("lseek");
