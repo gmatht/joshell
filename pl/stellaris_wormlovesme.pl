@@ -1,5 +1,5 @@
 #Unzip stellaris savegame. run as 
-#   stellaris_wormlovesme < gamestate
+#   perl stellaris_wormlovesme.pl < gamestate
 #Finds habitiable systems with lots of worlds of size 10..25 for the worm to love
 #Note: doesn't exclude gas giants
 
