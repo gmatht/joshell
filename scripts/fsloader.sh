@@ -27,13 +27,10 @@ PATH="/cygdrive/c/Users/Al/bin/sysinternals:${HOME}/bin:${PATH}"
 cd "$BACKUP_DIR"
 
 set -x
-#OLD SCRIPT DIR was  /cygdrive/e/Games/Downloads_nick_john_sarah/nick/fractured-space/crew-settings.configbkp
 
 owner=unknown
-
 owner_str=$(grep ^Email= $CONFIG | sed s/^Email=// | tr -d \\r\\n )
 owner=$(echo $owner_str | grep -o ^.)
-
 echo "Current Owner is $owner_str ($owner)"
 
 BACKUP=$owner.ini
@@ -99,6 +96,7 @@ LOGIN=$BACKUP_DIR/$c.login
 if [ -e $LOGIN ]
 then
 	./Steam.exe -login $(cat $LOGIN)  -applaunch 310380
+	# Properties -> General -> Set launch options -> "-autostart"
 else
 	echo "'$LOGIN'" does not exist
 	echo It should contain one line like:
