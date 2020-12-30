@@ -1,0 +1,48 @@
+#This requires isync 1.3.3. On Ubuntu 20.04 you will have to compile the new version.
+IMAPAccount gmail-account
+Host imap.gmail.com
+User user@gmail.com
+Pass **************** 
+UseIMAPS yes
+PipelineDepth 20  #Needed to stop overquota error. 30 was too large.
+Timeout 120
+CertificateFile /etc/ssl/certs/ca-certificates.crt
+
+IMAPStore gmail-master
+Account gmail-account
+
+MaildirStore INBOX-slave 
+Path ~/Mail
+Inbox ~/Mail/Inbox
+
+MaildirStore sent-slave 
+SubFolders Verbatim
+Path ~/Mail/
+Inbox ~/Mail/Sent
+
+MaildirStore drafts-slave 
+SubFolders Verbatim
+Path ~/Mail/
+Inbox ~/Mail/Drafts
+
+Channel inbox-channel
+Master :gmail-master:
+Slave :INBOX-slave:
+Patterns "INBOX" 
+Create Both
+SyncState *
+
+Channel sent-channel
+Master :gmail-master:
+Slave :sent-slave:
+Patterns "\[Gmail\]/Sent Mail"
+Create Both
+SyncState *
+
+
+Channel drafts-channel
+Master :gmail-master:
+Slave :drafts-slave:
+Patterns "\[Gmail\]/Drafts"
+Create Both
+SyncState *
