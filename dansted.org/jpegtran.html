@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lossless JPG Recompression</title>
+<style>
+body {
+  font-family: "Noto Sans", sans-serif;
+}
+
+code, pre, tt, kbd, samp {
+  font-family: "Noto Sans Mono", monospace;
+}
+</style>
+</head> 
+<h1>Mozilla's new lossless JPEG compression</h1>
+I was quite impressed with Mozillas new jpegtran in mozjpeg. It crushed a 2.2GB photo shoot down to 1.4GB, a bit smaller than the 1.5GB achieved by jpegoptim. So I thought I'd try to make it drop-dead simple to play with.
+
+<h2>My Online Demo</h2>
+<form id="uploadbanner" enctype="multipart/form-data" method="post" action="cgi-bin/jpegtran.cgi">
+   <input id="fileupload" name="myfile" type="file">
+   <input type="submit" value="submit" id="submit">
+</form>
+
+If you wanted to losslessly recompress an entire directory you could do something like:<br>
+<code>mkdir -p crush; for F in *.jpg; do curl -F "file=@$F" dansted.org/cgi-bin/jpegtran.cgi &gt; "crush/$F"; done</code><br>
+<br>on Linux/Mac, or on the Windows Command Prompt:<br>
+<code>MKDIR crush &amp; FOR %F IN (*.jpg) DO ( CURL -F "file=@%F" "https://dansted.org/cgi-bin/jpegtran.cgi" &gt; "crush\%F" )</code>
+<br>
+But you might want to install mozjpeg locally instead. I won't try to do anything evil with your photos, but my server is not exactly secured with CrowdStrike :P.
+
+
+<h2>Downloads</h2>
+<p><a href="mozjpeg.zip">64bit Windows Binaries</a>: These were created on Windows 11 using:<br>
+<code>
+git clone https://github.com/Microsoft/vcpkg.git<br>
+cd vcpkg<br>
+bootstrap-vcpkg.bat<br>
+vcpkg install mozjpeg<br>
+REM Wait 1.5 minutes... and DONE!<br>
+</code>
+</p>
+
+<p><i>The rest of this article will focus on Linux. Windows users probably wouldn't that excited until there is a GUI anyway. I was thinking of making one, but that is a whole new kettle of fish.</i></p>
+<a href="jpegtran.cgi">CGI Wrapper</a><br>
+<a href="static.txz">64bit Linux Binaries</a>:
+If you are going to grab random binaries off the web and run them, I suggest you at least use firejail. Something like:<br>
+<code>
+firejail --quiet --net=none --blacklist=/boot --blacklist=/chroot --blacklist=/chroot24.04 --blacklist=/dev --blacklist=/etc --blacklist=/home --blacklist=/install --blacklist=/lost+found --blacklist=/media --blacklist=/mnt --blacklist=/opt --blacklist=/proc --blacklist=/root --blacklist=/run --blacklist=/sbin --blacklist=/snap --blacklist=/srv --blacklist=/sys --blacklist=/tmp --blacklist=/var jpegtran -progressive &lt; in.jpg &gt; out.jpg
+</code></p>
+This should block everything except /bin, /lib, /lib64 and /usr, the only directories jpegtran needs. It would be nice if the --whitelist option of firejail worked, but hey. In general, you can test what directories an executable needs with a script such as <a href="testfirejail.sh">testfirejail.sh</a>.
+
+<p>The binaries were created on Oracle Linux 7.9 with:<code><br>
+sudo yum install git cmake make nasm gcc<br>
+wget https://download.sourceforge.net/libpng/libpng-1.6.43.tar.xz<br>
+wget https://www.zlib.net/zlib-1.3.1.tar.gz<br>
+git clone https://github.com/mozilla/mozjpeg.git<br>
+tar -xf libpng-1.6.43.tar.xz<br>
+tar -xf zlib-1.3.1.tar.gz<br>
+( cd zlib-1.3.1; ./configure; make -j4; sudo make install )<br>
+( cd libpng-1.6.43; ./configure; make -j4; sudo make install )<br>
+( cd mozjpeg ; cmake . ; make -j4 ; sudo make install)<br>
+</code></p>
+
+<p>This can also be installed on Ubuntu 16.04 with:<code><br>
+sudo apt install git cmake make nasm gcc<br>
+wget https://download.sourceforge.net/libpng/libpng-1.6.43.tar.xz<br>
+git clone https://github.com/mozilla/mozjpeg.git<br>
+tar -xf libpng-1.6.43.tar.xz<br>
+( cd libpng-1.6.43; ./configure; make -j4; sudo make install )<br>
+( cd mozjpeg ; cmake . ; make -j4 ; sudo make install)<br>
+</code><br></p>
+
+<p>Note that with supported Ubuntu versions (i.e. 20.04 or newer) the included libpng is 1.6+ so the following will work:
+<code><br>
+sudo apt install git cmake make nasm gcc libpng-dev<br>
+git clone https://github.com/mozilla/mozjpeg.git<br>
+( cd mozjpeg ; cmake . ; make -j4 ; sudo make install)
+</code></p>
+
+
+
+</html>
+
+
