@@ -10,19 +10,18 @@ MIN_ORANGE=30
 MIN_RED=10
 ### END CONFIG ###
 
-ABOUT_TEXT="""
-- About: Show About
-"""
-
 HELP_TEXT="""
 DTimer was designed to be used as a timer for work,
 Specifically for Data Annotation Tech.
 
 Created by: John McCabe-Dansted
-Version: 0.1
+Version: 0.2
 
 If you want to work for DAT you can use my referral code:
 2ZbHGEA
+
+New in 0.2: Basic Linux Support and offers to download missing files
+  - What works in Linux may depend on your window manager
 
 --------------------------------------------
 
@@ -41,7 +40,7 @@ Right Click Menu:
 - Copy: Foreground Window Times
 - Fix Time: Adjust which window titles are billable
 - Doom ^A^C: Copy All Text, Initialize Doom Clock from Clipboard
-- Doom Picker: Manually set time to Deadline
+- Doom Picker: Manually set Deadline
 --------------------------------------------
 - Restart: Set Billable time etc. to Zero
 - Quit: Stop This program
@@ -52,32 +51,89 @@ Right Click Menu:
 PAUSE_SYMBOL="\u23F8" # Unicode for pause symbol
 RECORD_SYMBOL="\u23FA" # Unicode for record symbol
 
-import re
-import sys
-import tkinter as tk
-from tkinter import BooleanVar, Checkbutton, font, RIGHT, Menu, messagebox
-import time
-from collections import defaultdict
-import platform
-import os
-from datetime import datetime
+### BEGIN IMPORTS AND COMPATIBILITY CODE ###
 
-### For Doom Clock ###
-#import pyautogui
-import tktimepicker
-from tktimepicker import AnalogPicker, constants
+import os, sys, re;
 
+#Define an 'xterm -e' like command.
+#WARNING: It doesn't escape double quotes (")
+if os.name=='nt':
+    def xterm(cmd, confirm=None):
+        c=cmd
+        if confirm:
+            c="set /p DUMMY=" + confirm + " && " + c
+        c="start cmd /k \"" +\
+            c + " && set /p DUMMY=Close this window to continue...\""
+        os.system(c)
+else:
+    def xterm(cmd, confirm=None):
+        c=cmd
+        if confirm:
+            c="echo" + confirm + " && read _ && " + c
+        c="`which $TERM xfce4-terminal rxvt foot kitty konsole xterm gnome-terminal eterm urxvt gnome-terminal Alacritty alacritty warp hyper iterm2 terminal | head -n 1` -e \"" +\
+              c + " && echo Close this window to continue && read _\""
+        os.system(c)
 
+#Try to import modules, offer to install them if it fails
+#TODO: Test these actually work on a fresh install
+try:
+    import tkinter as tk
+    from tkinter import BooleanVar, Checkbutton, font, RIGHT, Menu, messagebox
+    from collections import defaultdict
+    from datetime import datetime
 
-from pynput.keyboard import Key, Controller
-from time import sleep
+    ### For Doom Clock ###
+    #import pyautogui
+    import time, ctypes, tktimepicker
+    from tktimepicker import AnalogPicker, constants
 
-from ctypes import windll
+    from pynput.keyboard import Key, Controller
+    from time import sleep
 
+except ImportError:
+    pips='datetime tk time tktimepicker pynput ctypes collection'
+    if os.name!='nt':
+        pips='Xlib contextlib ' + pips
+    pip_cmd="pip install " + pips
+    msg = "DTimer will quit if any modules are missing. "
+    msg = "We need all of the following modules:" + pips + "."
+    msg += "Press Enter to install now, or close the window to quit."
 
+    #Support installing unifont via curl later
+    from tkinter.messagebox import askokcancel, showinfo, WARNING
+    root = tk.Tk()
+    root.title('Restart?')
+    install = askokcancel(
+        title='Restart?',
+        message="DTimer will need to restart.\nRestart (or quit)?",
+        icon=WARNING)
+    if not install:
+        quit()
+    os.execv(sys.argv[0], sys.argv)
+
+if os.name!='nt':
+    if os.system("fc-list :charset=23F8,93FA|grep ."):
+        install = askokcancel(
+            title='Install GNU Unifont?',
+            message="""DTimer uses unicode symbols, but you don't have a font installed with those symbols.
+
+            If you don't install such a font, DTimer will use ugly ascii symbols instead. :(
+
+            Would you like us to install GNU Unifont now? (26 MB download; 86 MB untarred; 589 MB when built with font files)""",
+            icon=WARNING)
+        if install:
+            xterm("mkdir -p ~/.fonts && cd ~/.fonts && curl -O https://unifoundry.com/pub/unifont/unifont-15.1.05/unifont-15.1.05.tar.gz && tar -xf unifont-15.1.05.tar.gz && fc-cache -f -v")
+        else:
+            PAUSE_SYMBOL="[*]" # Ascii pause symbol
+            RECORD_SYMBOL="[||]" # Ascii record symbol
 
 
 def copy_all():
+    if os.name!='nt':
+        #pynput should work in Linux, but it doesn't seem to
+        #You may have to play a bit with this to get it to work with your window manager.
+        if os.system("sleep 0.1 && xdotool key ctrl+a && sleep 0.1 && xdotool key ctrl+c")==0:
+            return
     kc=Controller()
     def s(): sleep(0.1)
     def p(k):
@@ -101,7 +157,7 @@ def exec_cmd(cmd_string):
     return result_string
 
 ###### Get Window Title ################
-if platform.system() == 'Windows':
+if os.name=='nt':
     from ctypes import wintypes, windll, create_unicode_buffer
     def getForegroundWindowTitle():
         hWnd = windll.user32.GetForegroundWindow()
@@ -125,19 +181,110 @@ if platform.system() == 'Windows':
         global last_hwnd
         user32.SetForegroundWindow(last_hwnd)
 else:
-    def getForegroundWindowTitle():
-        return exec_cmd("xdotool getwindowfocus getwindowname")
+
     def unfocus(tk):
+            return
+            #On X11 we declare the window as being a dock and the WM will unfocus for us
             root=tk.master
             root.withdraw()
             root.deiconify()
             root.attributes("-topmost", True)
 
-    def store_fg():
+    def store_fg(bad=False):
         return
 
+    #Instead of the next hundred odd lines, we could just do this. But it is not "Efficient"
+    #def getForegroundWindowTitle():
+    #    return exec_cmd("xdotool getwindowfocus getwindowname")
+
+    from contextlib import contextmanager
+    import Xlib
+    import Xlib.display
+
+    # Connect to the X server and get the root window
+    xldisp = Xlib.display.Display()
+    xlroot = xldisp.screen().root
+
+    # Prepare the property names we use so they can be fed into X11 APIs
+    NET_ACTIVE_WINDOW = xldisp.intern_atom('_NET_ACTIVE_WINDOW')
+    NET_WM_NAME = xldisp.intern_atom('_NET_WM_NAME')  # UTF-8
+    WM_NAME = xldisp.intern_atom('WM_NAME')           # Legacy encoding
+
+    last_seen = { 'xid': None, 'title': None }
+
+    @contextmanager
+    def window_obj(win_id):
+        """Simplify dealing with BadWindow (make it either valid or None)"""
+        window_obj = None
+        if win_id:
+            try:
+                window_obj = xldisp.create_resource_object('window', win_id)
+            except Xlib.error.XError:
+                pass
+        yield window_obj
+
+    def get_active_window():
+        """Return a (window_obj, focus_has_changed) tuple for the active window."""
+        win_id = xlroot.get_full_property(NET_ACTIVE_WINDOW,
+                                        Xlib.X.AnyPropertyType).value[0]
+
+        focus_changed = (win_id != last_seen['xid'])
+        if focus_changed:
+            with window_obj(last_seen['xid']) as old_win:
+                if old_win:
+                    old_win.change_attributes(event_mask=Xlib.X.NoEventMask)
+
+            last_seen['xid'] = win_id
+            with window_obj(win_id) as new_win:
+                if new_win:
+                    new_win.change_attributes(event_mask=Xlib.X.PropertyChangeMask)
+
+        return win_id, focus_changed
+
+    def _get_window_name_inner(win_obj):
+        """Simplify dealing with _NET_WM_NAME (UTF-8) vs. WM_NAME (legacy)"""
+        for atom in (NET_WM_NAME, WM_NAME):
+            try:
+                window_name = win_obj.get_full_property(atom, 0)
+            except UnicodeDecodeError:  # Apparently a Debian distro package bug
+                title = "<could not decode characters>"
+            else:
+                if window_name:
+                    win_name = window_name.value
+                    if isinstance(win_name, bytes):
+                        # Apparently COMPOUND_TEXT is so arcane that this is how
+                        # tools like xprop deal with receiving it these days
+                        win_name = win_name.decode('latin1', 'replace')
+                    return win_name
+                else:
+                    title = "<unnamed window>"
+
+        return "{} (XID: {})".format(title, win_obj.id)
+
+    def get_window_name(win_id):
+        """Look up the window name for a given X11 window ID"""
+        if not win_id:
+            last_seen['title'] = "<no window id>"
+            return last_seen['title']
+
+        title_changed = False
+        with window_obj(win_id) as wobj:
+            if wobj:
+                win_title = _get_window_name_inner(wobj)
+                title_changed = (win_title != last_seen['title'])
+                last_seen['title'] = win_title
+
+        return last_seen['title'], title_changed
+
+    def getForegroundWindowTitle():
+        try:
+            return (get_window_name(get_active_window()[0])[0])
+        except:
+            #Doesn't seem to work in LXDE
+            return "ERROR"
+
 ######### IDLE TIME ##################
-if platform.system() == 'Windows':
+if os.name == 'nt':
     from ctypes import Structure, windll, c_uint, sizeof, byref
     class LASTINPUTINFO(Structure):
         _fields_ = [
@@ -153,19 +300,52 @@ if platform.system() == 'Windows':
         return millis / 1000.0
 else:
 
+    class XScreenSaverInfo( ctypes.Structure):
+        """ typedef struct { ... } XScreenSaverInfo; """
+        _fields_ = [('window',      ctypes.c_ulong), # screen saver window
+                    ('state',       ctypes.c_int),   # off,on,disabled
+                    ('kind',        ctypes.c_int),   # blanked,internal,external
+                    ('since',       ctypes.c_ulong), # milliseconds
+                    ('idle',        ctypes.c_ulong), # milliseconds
+                    ('event_mask',  ctypes.c_ulong)] # events
 
+    xlib = ctypes.cdll.LoadLibrary( 'libX11.so')
+    xlib.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    xlib.XOpenDisplay.restype = ctypes.c_void_p  # Actually, it's a Display pointer, but since the Display structure definition is not known (nor do we care about it), make it a void pointer
+
+    xlib.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    xlib.XDefaultRootWindow.restype = ctypes.c_uint32
+
+    xss = ctypes.cdll.LoadLibrary( 'libXss.so.1')
+    xss.XScreenSaverQueryInfo.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(XScreenSaverInfo)]
+    xss.XScreenSaverQueryInfo.restype = ctypes.c_int
+
+    DISPLAY=os.environ['DISPLAY']
+    xdpy = xlib.XOpenDisplay(None)
+    xroot = xlib.XDefaultRootWindow( xdpy)
+    xss.XScreenSaverAllocInfo.restype = ctypes.POINTER(XScreenSaverInfo)
+    xss_info = xss.XScreenSaverAllocInfo()
     def get_idle_duration():
-        millis = int(exec_cmd("xprintidle"))
-        os.system('clear')
+        global xss, xroot, xss_info
+        xss.XScreenSaverQueryInfo( xdpy, xroot, xss_info)
+        millis = xss_info.contents.idle
+        #millis = int(exec_cmd("xprintidle"))
         return millis / 1000.0
 
+def restart():
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
 ########### END IDLE TIME ################
+
+### END IMPORTS AND COMPATIBILITY CODE ###
 
 class TimeTrackerApp(tk.Tk):
     def __init__(self, master):
         self.master = master
         self.master.title("Time Tracker")
         self.master.overrideredirect(True)
+        if os.name != 'nt':
+            self.master.wm_attributes("-type", "dock")
 
         self.recording = False
         self.last_time = time.time()
@@ -178,6 +358,7 @@ class TimeTrackerApp(tk.Tk):
         self.button = tk.Button(master, text=RECORD_SYMBOL, font=ft, command=self.toggle_recording)
         self.button.pack(side=RIGHT)
 
+        ft = font.Font(family='Arial', size=16)
         self.time_label = tk.Label(master, text="00:00:00", font=ft)
         self.time_label.pack(padx=1,pady=0,side=tk.TOP)
 
@@ -203,7 +384,7 @@ class TimeTrackerApp(tk.Tk):
         m.add_command(label="Doom Picker", command=self.get_time)
         #m.add_command(label="Reload")
         m.add_separator()
-        m.add_command(label="Restart", command=self.do_restart)
+        m.add_command(label="Restart", command=restart)
         m.add_command(label="Quit", command=self.master.destroy)
         m.add_separator()
         m.add_command(label="Help", command=self.do_help)
@@ -234,7 +415,7 @@ class TimeTrackerApp(tk.Tk):
         top = tk.Toplevel(root)
         top.title("Set Deadline")
 
-        time_picker = AnalogPicker(top, type=constants.HOURS24)   
+        time_picker = AnalogPicker(top, type=constants.HOURS24)
         time_picker.setHours(1)
         time_picker.setMinutes(0)
         time_picker.pack(expand=True, fill="both")
@@ -291,6 +472,7 @@ class TimeTrackerApp(tk.Tk):
         self.master.clipboard_append(s)
 
     def do_restart(self):
+        os.execv(sys.argv[0], sys.argv)
         self.elapsed_time = 0
         self.title_times = defaultdict(float)
         self.pause_times = defaultdict(float)
@@ -305,11 +487,15 @@ class TimeTrackerApp(tk.Tk):
         #unfocus(self)
 
     def start_move(self, event):
+        #if platform.system() != 'Windows':
+        #    self.master.wm_attributes("-type", "normal")
         store_fg(bad=True)
         self.x = event.x
         self.y = event.y
 
     def stop_move(self, event):
+        #if platform.system() != 'Windows':
+        #    self.master.wm_attributes("-type", "dock")
         self.x = None
         self.y = None
         unfocus(self)
