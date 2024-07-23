@@ -4,7 +4,7 @@ wget http://opensource.platon.sk/upload/_projects/00003/libcfg+-0.7.0.tar.gz
 tar -xf libcfg+-0.7.0.tar.gz
 (cd libcfg+-0.7.0; ./configure; make -j4; sudo make install)
 cd fuseflt/
-patch -p0 <<EOF
+patch -p1 <<EOF
 diff --git a/Makefile b/Makefile
 index 1fd8832..f21acfe 100644
 --- a/Makefile
