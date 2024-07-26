@@ -15,11 +15,12 @@ DTimer was designed to be used as a timer for work,
 Specifically for Data Annotation Tech.
 
 Created by: John McCabe-Dansted
-Version: 0.2
+Version: 0.3
 
 If you want to work for DAT you can use my referral code:
 2ZbHGEA
 
+New in 0.3: Tested and fixed install on Ubuntu
 New in 0.2: Basic Linux Support and offers to download missing files
   - What works in Linux may depend on your window manager
 
@@ -53,7 +54,19 @@ RECORD_SYMBOL="\u23FA" # Unicode for record symbol
 
 ### BEGIN IMPORTS AND COMPATIBILITY CODE ###
 
-import os, sys, re;
+import os, sys, re, shutil
+from tkinter import Tk;
+
+def restart():
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+def replace_last_occurrence(s, old, new):
+    # Find the last occurrence of the substring
+    pos = s.rfind(old)
+    if pos == -1:
+        return (-1,s)  # Substring not found, return the original string
+    # Replace the last occurrence
+    return (pos, s[:pos] + new + s[pos + len(old):])
 
 #Define an 'xterm -e' like command.
 #WARNING: It doesn't escape double quotes (")
@@ -61,59 +74,133 @@ if os.name=='nt':
     def xterm(cmd, confirm=None):
         c=cmd
         if confirm:
-            c="set /p DUMMY=" + confirm + " && " + c
-        c="start cmd /k \"" +\
+            c="set /p DUMMY=" + re.escape(confirm.replace("\n", " ")) + " & " + c
+        c="start /wait cmd /k \"" +\
             c + " && set /p DUMMY=Close this window to continue...\""
         os.system(c)
 else:
     def xterm(cmd, confirm=None):
-        c=cmd
+        #print(f"'{cmd}' '{confirm}'")
+
+        #c='( '+cmd+' )'
+        #if confirm:
+            #c="echo " + confirm.replace("\n", " ").replace("'", "\\'").replace("(", "\\()").replace(")", "\\)") + " && read _ && " + c
+        #    c="echo " + confirm.translate(str.maketrans("\n'\"()", "     ")) + " && read _ && " + c
+        #First we try to start a new $TERM instance. This is the terminal that
+        #the user is using now, maybe it is their default terminal.
+        #Failing that we try a bunch of random terminals that might be
+        #available (Including a number of ones popular on MacOS although
+        #we do not suppport MacOS yet). The first one found will be used.
+        #If we do not find a terminal the user has, we just use bash. This
+        #doesn't allow us to pop up a new window. However it is an OK
+        #workaround for things like WSL that may not have an native terminal.
+
+        #c="`which $TERM xfce4-terminal rxvt foot kitty konsole xterm gnome-terminal eterm urxvt gnome-terminal Alacritty alacritty warp hyper iterm2 terminal bash | head -n 1 | sed 's/bash/bash -c'/` -e \"" +\
+        #      c + " ; echo Close this window to continue ; read _\""
+
+        #Nah forget it, just use bash for everything
+
         if confirm:
-            c="echo" + confirm + " && read _ && " + c
-        c="`which $TERM xfce4-terminal rxvt foot kitty konsole xterm gnome-terminal eterm urxvt gnome-terminal Alacritty alacritty warp hyper iterm2 terminal | head -n 1` -e \"" +\
-              c + " && echo Close this window to continue && read _\""
-        os.system(c)
+            print(confirm)
+            print("INSTALL COMMAND:" + cmd)
+            print("Press Y[Enter] to install, or any other key to quit")
+            if input().lower()!='y':
+                quit()
+        os.system(cmd)
 
 #Try to import modules, offer to install them if it fails
 #TODO: Test these actually work on a fresh install
+if os.name != 'nt':
+    try:
+        import tkinter as tk
+        import pynput
+    except:
+        xterm("sudo apt install python3-tk python3-pynput", "DTimer needs tkinter and pynput to run.")
 try:
+
     import tkinter as tk
     from tkinter import BooleanVar, Checkbutton, font, RIGHT, Menu, messagebox
     from collections import defaultdict
     from datetime import datetime
 
     ### For Doom Clock ###
-    #import pyautogui
+    #import pyautogui -> Doesn't work
     import time, ctypes, tktimepicker
     from tktimepicker import AnalogPicker, constants
 
     from pynput.keyboard import Key, Controller
     from time import sleep
 
-except ImportError:
-    pips='datetime tk time tktimepicker pynput ctypes collection'
-    if os.name!='nt':
-        pips='Xlib contextlib ' + pips
-    pip_cmd="pip install " + pips
-    msg = "DTimer will quit if any modules are missing. "
-    msg = "We need all of the following modules:" + pips + "."
-    msg += "Press Enter to install now, or close the window to quit."
+except ImportError as e:
+    pips='datetime tktimepicker pynput collection'
+    if os.name=='nt':
+        pips='pynput tkinter pynput ' + pips
+    #else:
+    #    pips='contextlib ' + pips
+    #pip has a stupid default many packages need an alternative timeout. None of the packages we will install, but lets be safe.
+    #guess_conda_path=os.path.expandvars(r"%USERPROFILE%\anaconda3\condabin\conda.bat")
+    pip1=os.path.expandvars(r"%USERPROFILE%/anaconda3/Scripts/pip.exe")
+    (pos2,pip2)=replace_last_occurrence(sys.executable, 'pythonw', 'pip')
+    if pos2<0: (pos2,pip2)=replace_last_occurrence(sys.executable, 'python', 'pip')
+    msg = repr(e) + "\nWe need all of the following modules:\n" + pips + ".\n"
+    #msg =+ " DTimer will quit if any modules are missing.\n"
+
+    #Conda makes it hard to find packages, just use pip
+    pip_cmd=''
+    for i in range(2):
+        if shutil.which('pip'):   pip_cmd="pip" #was x
+        elif shutil.which('pip'):    pip_cmd="pip"
+        elif shutil.which('pip3'): pip_cmd="pip3"
+        elif pos2 >= 0 and os.path.exists(pip2): pip_cmd=pip2
+        elif os.path.exists(pip1): pip_cmd=pip1
+        #elif shutil.which('conda'):
+        #    pip_cmd="conda install " + pips
+        #elif os.path.exists(guess_conda_path):
+        #    pip_cmd="{guess_conda_path} install" + pips
+        else:
+            if os.name!='nt' and shutil.which('apt'):
+                pip_cmd="sudo add-apt-repository universe && sudo apt-get update && sudo apt-get install python3-pip"
+                msg+="\nPress Enter to install pip now, or close the window to quit."
+                xterm(pip_cmd, msg)
+                continue
+
+            msg +=  "\nWe cannot find Pip. Please install pip or the modules and try again."
+            xterm("echo bye", msg)
+            quit()
+        break
+
+    if os.name != 'nt':
+        if os.system("python3 -m venv ~/.virtualenvs/dtimer.venv")==0:
+            pip_cmd = "~/.virtualenvs/dtimer.venv/bin/pip"
+
+
+    msg +=  f" Press Enter to install now({pip_cmd}), or close the window to quit."
+
+    #pip_cmd=pip_cmd+" --default-timeout=100 install " + pips
+    pip_cmd=pip_cmd + " install " + pips
+
+    xterm(pip_cmd, msg)
 
     #Support installing unifont via curl later
     from tkinter.messagebox import askokcancel, showinfo, WARNING
+    import tkinter as tk
     root = tk.Tk()
-    root.title('Restart?')
-    install = askokcancel(
+    root.withdraw()
+    install = root.messagebox.askokcancel(
         title='Restart?',
         message="DTimer will need to restart.\nRestart (or quit)?",
         icon=WARNING)
     if not install:
         quit()
-    os.execv(sys.argv[0], sys.argv)
+    restart()
 
 if os.name!='nt':
+    from tkinter.messagebox import askokcancel, showinfo, WARNING
+    import tkinter as tk
     if os.system("fc-list :charset=23F8,93FA|grep ."):
-        install = askokcancel(
+        root = tk.Tk()
+        root.withdraw()
+        install = tk.messagebox.askokcancel(
             title='Install GNU Unifont?',
             message="""DTimer uses unicode symbols, but you don't have a font installed with those symbols.
 
@@ -122,33 +209,13 @@ if os.name!='nt':
             Would you like us to install GNU Unifont now? (26 MB download; 86 MB untarred; 589 MB when built with font files)""",
             icon=WARNING)
         if install:
-            xterm("mkdir -p ~/.fonts && cd ~/.fonts && curl -O https://unifoundry.com/pub/unifont/unifont-15.1.05/unifont-15.1.05.tar.gz && tar -xf unifont-15.1.05.tar.gz && fc-cache -f -v")
+            xterm("mkdir -p ~/.fonts && cd ~/.fonts && (curl -O https://unifoundry.com/pub/unifont/unifont-15.1.05/unifont-15.1.05.tar.gz || wget https://unifoundry.com/pub/unifont/unifont-15.1.05/unifont-15.1.05.tar.gz) && tar -xf unifont-15.1.05.tar.gz && fc-cache -f -v")
+            #There seemed to be a problem with laying out the widgets if we don't restart after installing the font.
+            restart()
         else:
             PAUSE_SYMBOL="[*]" # Ascii pause symbol
             RECORD_SYMBOL="[||]" # Ascii record symbol
 
-
-def copy_all():
-    if os.name!='nt':
-        #pynput should work in Linux, but it doesn't seem to
-        #You may have to play a bit with this to get it to work with your window manager.
-        if os.system("sleep 0.1 && xdotool key ctrl+a && sleep 0.1 && xdotool key ctrl+c")==0:
-            return
-    kc=Controller()
-    def s(): sleep(0.1)
-    def p(k):
-        s()
-        kc.press(k)
-    def r(k):
-        s()
-        kc.release(k)
-    p(Key.ctrl_l)
-    p('a')
-    r('a')
-    p('c')
-    r('c')
-    r(Key.ctrl_l)
-    s()
 
 def exec_cmd(cmd_string):
     r = os.popen(cmd_string)
@@ -309,7 +376,10 @@ else:
                     ('idle',        ctypes.c_ulong), # milliseconds
                     ('event_mask',  ctypes.c_ulong)] # events
 
-    xlib = ctypes.cdll.LoadLibrary( 'libX11.so')
+    try:
+        xlib = ctypes.cdll.LoadLibrary( 'libX11.so')
+    except:
+        xlib = ctypes.cdll.LoadLibrary( 'libX11.so.6')
     xlib.XOpenDisplay.argtypes = [ctypes.c_char_p]
     xlib.XOpenDisplay.restype = ctypes.c_void_p  # Actually, it's a Display pointer, but since the Display structure definition is not known (nor do we care about it), make it a void pointer
 
@@ -332,12 +402,35 @@ else:
         #millis = int(exec_cmd("xprintidle"))
         return millis / 1000.0
 
-def restart():
-    os.execv(sys.executable, [sys.executable] + sys.argv)
 
 ########### END IDLE TIME ################
 
 ### END IMPORTS AND COMPATIBILITY CODE ###
+
+
+def copy_all():
+    if os.name!='nt':
+        #pynput should work in Linux, but it doesn't seem to
+        #You may have to play a bit with this to get it to work with your window manager.
+        if os.system("sleep 0.1 && xdotool key ctrl+a && sleep 0.1 && xdotool key ctrl+c")==0:
+            return
+    print("D2")
+    kc=Controller()
+    def s(): sleep(0.1)
+    def p(k):
+        print(k)
+        s()
+        kc.press(k)
+    def r(k):
+        s()
+        kc.release(k)
+    p(Key.ctrl_l)
+    p('a')
+    r('a')
+    p('c')
+    r('c')
+    r(Key.ctrl_l)
+    s()
 
 class TimeTrackerApp(tk.Tk):
     def __init__(self, master):
@@ -354,7 +447,6 @@ class TimeTrackerApp(tk.Tk):
         self.elapsed_time = 0
 
         ft = font.Font(family='Arial', size=16)
-        #pause_symbol = "\u23FA"  # Unicode for record symbol
         self.button = tk.Button(master, text=RECORD_SYMBOL, font=ft, command=self.toggle_recording)
         self.button.pack(side=RIGHT)
 
@@ -362,6 +454,7 @@ class TimeTrackerApp(tk.Tk):
         self.time_label = tk.Label(master, text="00:00:00", font=ft)
         self.time_label.pack(padx=1,pady=0,side=tk.TOP)
 
+        tl_h=self.time_label.winfo_height()
         ft = font.Font(family='Arial', size=9)
         self.doom_label = tk.Label(master, text="00:00:00", font=ft)
         self.doom_label.pack(padx=1,pady=0,side=tk.LEFT)
@@ -382,13 +475,11 @@ class TimeTrackerApp(tk.Tk):
         m.add_command(label="Fix Time", command=self.fix_time)
         m.add_command(label="Doom ^A^C", command=self.do_doom)
         m.add_command(label="Doom Picker", command=self.get_time)
-        #m.add_command(label="Reload")
         m.add_separator()
         m.add_command(label="Restart", command=restart)
         m.add_command(label="Quit", command=self.master.destroy)
         m.add_separator()
         m.add_command(label="Help", command=self.do_help)
-        #m.add_command(label="About", command=self.do_about)
         self.popup_menu = m
 
         self.update_time()
@@ -453,8 +544,11 @@ class TimeTrackerApp(tk.Tk):
 
     def do_doom(self):
         r=re.compile(r".*\nExpires in: (\d+) hours? (\d+) minutes?\n[$]\d.*",re.MULTILINE|re.DOTALL)
+        print("D1")
+        unfocus(self)
         copy_all()
         s=self.master.clipboard_get()
+        print(s)
         m=r.match(s)
         if m:
             h,m=m.groups()
@@ -471,13 +565,6 @@ class TimeTrackerApp(tk.Tk):
         self.master.clipboard_clear()
         self.master.clipboard_append(s)
 
-    def do_restart(self):
-        os.execv(sys.argv[0], sys.argv)
-        self.elapsed_time = 0
-        self.title_times = defaultdict(float)
-        self.pause_times = defaultdict(float)
-        self.time_label.config(text="00:00:00")
-
     def do_popup(self, event):
         m=self.popup_menu
         try:
@@ -487,15 +574,11 @@ class TimeTrackerApp(tk.Tk):
         #unfocus(self)
 
     def start_move(self, event):
-        #if platform.system() != 'Windows':
-        #    self.master.wm_attributes("-type", "normal")
         store_fg(bad=True)
         self.x = event.x
         self.y = event.y
 
     def stop_move(self, event):
-        #if platform.system() != 'Windows':
-        #    self.master.wm_attributes("-type", "dock")
         self.x = None
         self.y = None
         unfocus(self)
