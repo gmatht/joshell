@@ -1,14 +1,23 @@
-#Optional Shebang for Linux
+#Optional Shebang for Linux (Might confuse Windows)
 #!/usr/bin/env python3
 
 ### CONFIG ###
+
 #Pomodero timer
 TIME_WORK=10
 TIME_PLAY=2
+
 #Doom Clock
 MIN_ORANGE=30
 MIN_RED=10
+
 ### END CONFIG ###
+
+# Table of Contents:
+#   CONFIG (see above: the obvious stuff to change)
+#   HELP TEXT
+#   IMPORTS AND COMPATIBILITY CODE
+#   GUI CODE
 
 HELP_TEXT="""
 DTimer was designed to be used as a timer for work,
@@ -186,7 +195,7 @@ except ImportError as e:
     import tkinter as tk
     root = tk.Tk()
     root.withdraw()
-    install = root.messagebox.askokcancel(
+    install = tk.messagebox.askokcancel(
         title='Restart?',
         message="DTimer will need to restart.\nRestart (or quit)?",
         icon=WARNING)
@@ -197,25 +206,23 @@ except ImportError as e:
 if os.name!='nt':
     from tkinter.messagebox import askokcancel, showinfo, WARNING
     import tkinter as tk
-    if os.system("fc-list :charset=23F8,93FA|grep ."):
-        root = tk.Tk()
-        root.withdraw()
-        install = tk.messagebox.askokcancel(
-            title='Install GNU Unifont?',
-            message="""DTimer uses unicode symbols, but you don't have a font installed with those symbols.
+    def support_symbol(u):
+        return os.system(f"fc-list :charset={u}|grep .")==0
 
-            If you don't install such a font, DTimer will use ugly ascii symbols instead. :(
+    #record
+    if   support_symbol("26AB"): RECORD_SYMBOL="\u26AB" # ⚫︎
+    elif support_symbol("23FA"): RECORD_SYMBOL="\u23FA" # ⏺︎
+    elif support_symbol("25F9"): RECORD_SYMBOL="\u23F9" # ◉︎
+    elif support_symbol("25CF"): RECORD_SYMBOL="\u25CF" # ●︎
+    elif support_symbol("25CB"): RECORD_SYMBOL="\u25CB" # ○︎
+    else: RECORD_SYMBOL="[O]"
 
-            Would you like us to install GNU Unifont now? (26 MB download; 86 MB untarred; 589 MB when built with font files)""",
-            icon=WARNING)
-        if install:
-            xterm("mkdir -p ~/.fonts && cd ~/.fonts && (curl -O https://unifoundry.com/pub/unifont/unifont-15.1.05/unifont-15.1.05.tar.gz || wget https://unifoundry.com/pub/unifont/unifont-15.1.05/unifont-15.1.05.tar.gz) && tar -xf unifont-15.1.05.tar.gz && fc-cache -f -v")
-            #There seemed to be a problem with laying out the widgets if we don't restart after installing the font.
-            restart()
-        else:
-            PAUSE_SYMBOL="[*]" # Ascii pause symbol
-            RECORD_SYMBOL="[||]" # Ascii record symbol
-
+    #pause
+    if   support_symbol("23F8"): PAUSE_SYMBOL="\u23F8" # ⚫ “⏸” (U+23F8)
+    elif support_symbol("9612"): PAUSE_SYMBOL="\u9612\u9612" #  “▌▌” (U+9612)
+    #elif support_symbol("9613"): PAUSE_SYMBOL="\u9613\u9613" # ▍ ▍ - &#9613;
+    elif support_symbol("2016"): PAUSE_SYMBOL="\u2016" # ⚫ “‖” (U+2016)
+    else: PAUSE_SYMBOL="[||]"
 
 def exec_cmd(cmd_string):
     r = os.popen(cmd_string)
@@ -406,6 +413,9 @@ else:
 ########### END IDLE TIME ################
 
 ### END IMPORTS AND COMPATIBILITY CODE ###
+
+
+### GUI CODE ###
 
 
 def copy_all():
