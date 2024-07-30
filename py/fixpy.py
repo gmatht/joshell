@@ -1,4 +1,3 @@
-#
 #!/usr/bin/env python3
 """
 Fixes Python scripts
@@ -30,10 +29,8 @@ if os.name == 'nt':
 else:
     from os import execl
 
-
 if len(sys.argv) == 1:
     execl(sys.executable, sys.executable , '-u')
-    #os.system(sys.executable)
     sys.exit()
 
 def eprint(*args, **kwargs):
@@ -62,8 +59,6 @@ def sha256sum(data):
     hasher = hashlib.new('sha256')
     hasher.update(data.encode("utf-8"))
     return hasher.hexdigest()
-    #with open(filename, 'rb', buffering=0) as file:
-    #    return hashlib.file_digest(file, 'sha256').hexdigest()
 
 def add_missing_braces_and_colons(script):
     """
@@ -91,7 +86,6 @@ def add_missing_braces_and_colons(script):
     # Add missing braces to print statements
     script = re.sub(r'(^\s*)print\s+([^(\n]+)$', r'\1print(\2)', script,0,re.MULTILINE)
 
-    #script = re.sub(r'$', r'#', script,0,re.MULTILINE)
     # Add missing colons to loops and conditionals
     needs_colon = r'^(\s*)\b(if|for|while|else|elif|try|except|finally|def)\b([^\:\\\\\n]*)$'
     script = re.sub(needs_colon, r'\1\2\3:', script,0,re.MULTILINE)
@@ -238,7 +232,7 @@ def fix_missing_quotes(input_string):
     #Fix ("foo)->("foo") [and ('foo)->('foo']
     result=re_quote(r'^([^\'"#]*[(]["][^"]*)([)])$->\1")',input_string)
 
-    #Fix (foo")->("foo") [1and (foo')->('foo')]
+    #Fix (foo")->("foo") [and (foo')->('foo')]
     result=re_quote(r'^((?:\w|\s|=|[.])*[(])([^"]*"[)])$->\1"\2',result)
     return result
 
@@ -278,13 +272,11 @@ def fix_imports(script):
     Returns:
         str: The modified script with fixed import statements.
     """
-    #We have a huge number of
     missing={}
     for mat in re.finditer(r'^[^\'"#.]*\b([a-zA-Z]\w*)\b[.]', script,re.MULTILINE):
         #eprint(f'Missing Import "{mat[1]}"')
         missing[mat[1]]=None
     for mat in re.finditer(r'^[^\'"#]*\b([a-zA-Z]\w*)\b.*=[.]', script,re.MULTILINE):
-        
         missing[mat[1]]=None
     for line in re.finditer(r'import (.*)', script,re.MULTILINE):
         for mat in re.finditer(r'\b(\w+)\b',line[1]):
@@ -314,9 +306,6 @@ def fix_imports(script):
         if key in missing:
             #eprint(f'Adding Alias {mat[1]}')
             imports += 'import ' + value + '\n'
-
-    #for k in sorted(missing.keys()):
-    #    imports += 'import ' + k + '\n'
     return imports + script
 
 def fix_all(script):
@@ -353,17 +342,9 @@ if len(sys.argv) == 2:
             commented.append(line.replace(' ','#'))
             commented.append(line)
         fixed=fix_all('\n'.join(commented))
-        #with open("tmpdemo.bad.py",'w',encoding="utf8") as x:
-        #    x.write(SAMPLE_SCRIPT)
-        #with open("tmpdemo.fixed.py",'w',encoding="utf8") as x:
-        #    x.write(fixed)
-        #try:
-        #    os.execl("wdiff","tmpdemo.bad.py","tmpdemo.fixed.py")   
-        #except FileNotFoundError:
-        #    print("Please install wdiff")
         print(fixed)
         sys.exit()
-        
+
 if len(sys.argv) == 3:
     if sys.argv[1] == '---fix':
         with open(sys.argv[2],encoding="utf8") as x:
@@ -388,8 +369,8 @@ for fname in sys.argv:
             os.makedirs(bakdir)
         bakfile=os.path.join(bakdir,fname)+"."+sha
         fixed=fix_all(slurped_f)
-        eprint('###' + fname + '###')
-        eprint(fixed)
+        #eprint('###' + fname + '###')
+        #eprint(fixed)
         try:
             os.rename(fname,bakfile)
             with open(fname,'w',encoding="utf8") as x:
@@ -404,11 +385,4 @@ for fname in sys.argv:
                     x.write(fixed)
                     x.close()
 
-#I am getting weird problems trying to read from stdin with os.execl.
-#I have no idea why. It works fine with os.system.
-#TODO: Figure out why.
-#args='"' + '" "'.join(sys.argv[1:]) + '"'
-#args=' '.join(sys.argv[1:])
-#eprint(f'cmd=>>"{sys.executable}" {args}<<')
-#os.system(f'"{sys.executable}" {args}') #os.system("sys.argv[1:]")
 execl(sys.executable, os.path.abspath(sys.argv[1]), *sys.argv[1:])
