@@ -364,7 +364,6 @@ for fname in sys.argv:
             x.close()
         sha=sha256sum(slurped_f)
         bakdir=os.path.join(os.path.dirname(fname),'bak')
-        #print(bakdir)
         if not os.path.isdir(bakdir):
             os.makedirs(bakdir)
         bakfile=os.path.join(bakdir,fname)+"."+sha
