@@ -24,11 +24,13 @@ DTimer was designed to be used as a timer for work,
 Specifically for Data Annotation Tech.
 
 Created by: John McCabe-Dansted
-Version: 0.3
+Version: 0.5
 
 If you want to work for DAT you can use my referral code:
 2ZbHGEA
 
+New in 0.5: UI Enhancements, Doom Clock supports <1hr too.
+New in 0.4: Removed Linux dependancy on Unifont
 New in 0.3: Tested and fixed install on Ubuntu
 New in 0.2: Basic Linux Support and offers to download missing files
   - What works in Linux may depend on your window manager
@@ -131,6 +133,7 @@ try:
     from tkinter import BooleanVar, Checkbutton, font, RIGHT, Menu, messagebox
     from collections import defaultdict
     from datetime import datetime
+    from tkinter.constants import VERTICAL, LEFT, BOTH, RIGHT, NW, Y,FALSE, TRUE
 
     ### For Doom Clock ###
     #import pyautogui -> Doesn't work
@@ -251,9 +254,20 @@ if os.name=='nt':
             hwnd = user32.GetForegroundWindow(None)
             if bad_hwnd!=hwnd:
                 last_hwnd=user32.GetForegroundWindow(None)
+
+    def topmost():
+        root.attributes("-topmost", True)
+
+
     def unfocus(tk):
         global last_hwnd
         user32.SetForegroundWindow(last_hwnd)
+        #Windows tends to forget this is meant to be above Taskbar
+        #Lets remind windows occasionally
+        root.attributes("-topmost", True)
+        root.after(10, topmost())
+        #root.after(100, topmost())
+        #root.after(200, topmost())
 else:
 
     def unfocus(tk):
@@ -417,6 +431,75 @@ else:
 
 ### GUI CODE ###
 
+from tkinter import ttk
+class VerticalScrolledFrame(ttk.Frame):
+
+
+    """A pure Tkinter scrollable frame that actually works!
+    * Use the 'interior' attribute to place widgets inside the scrollable frame.
+    * Construct and pack/place/grid normally.
+    * This frame only allows vertical scrolling.
+    """
+    def __init__(self, parent, *args, **kw):
+        ttk.Frame.__init__(self, parent, *args, **kw)
+
+        # Create a canvas object and a vertical scrollbar for scrolling it.
+        vscrollbar = ttk.Scrollbar(self, orient=VERTICAL)
+        vscrollbar.pack(fill=Y, side=RIGHT, expand=FALSE)
+        canvas = tk.Canvas(self, bd=0, highlightthickness=0,
+                           yscrollcommand=vscrollbar.set)
+        canvas.pack(side=LEFT, fill=BOTH, expand=TRUE)
+        vscrollbar.config(command=canvas.yview)
+
+        # Reset the view
+        canvas.xview_moveto(0)
+        canvas.yview_moveto(0)
+
+        # Create a frame inside the canvas which will be scrolled with it.
+        self.interior = interior = ttk.Frame(canvas)
+        interior_id = canvas.create_window(0, 0, window=interior,
+                                           anchor=NW)
+
+        # Track changes to the canvas and frame width and sync them,
+        # also updating the scrollbar.
+        def _configure_interior(event):
+            # Update the scrollbars to match the size of the inner frame.
+            size = (interior.winfo_reqwidth(), interior.winfo_reqheight())
+            canvas.config(scrollregion="0 0 %s %s" % size)
+            if interior.winfo_reqwidth() != canvas.winfo_width():
+                # Update the canvas's width to fit the inner frame.
+                canvas.config(width=interior.winfo_reqwidth())
+        interior.bind('<Configure>', _configure_interior)
+
+        def _configure_canvas(event):
+            if interior.winfo_reqwidth() != canvas.winfo_width():
+                # Update the inner frame's width to fill the canvas.
+                canvas.itemconfigure(interior_id, width=canvas.winfo_width())
+        canvas.bind('<Configure>', _configure_canvas)
+
+def init_pos():
+    #root = tk.Tk() # create a Tk root window
+    t=root
+    w = 138 #t.winfo_width() # width for the Tk root
+    h = 42 # t.winfo_width() # height for the Tk root
+    print(w,':',h)
+
+    # get screen width and height
+    ws = t.winfo_screenwidth() # width of the screen
+    hs = t.winfo_screenheight() # height of the screen
+
+    # calculate x and y coordinates for the Tk root window
+    x = (ws-2)*3/4 -20 # - 100
+    y = hs - h -2 # - 100
+
+    #x=0
+    #y=0
+
+    # set the dimensions of the screen
+    # and where it is placed
+    root.geometry('%dx%d+%d+%d' % (w, h, x, y))
+
+    #root.mainloop() # starts the mainloop
 
 def copy_all():
     if os.name!='nt':
@@ -447,6 +530,7 @@ class TimeTrackerApp(tk.Tk):
         self.master = master
         self.master.title("Time Tracker")
         self.master.overrideredirect(True)
+        self.menu_showing=False
         if os.name != 'nt':
             self.master.wm_attributes("-type", "dock")
 
@@ -480,6 +564,8 @@ class TimeTrackerApp(tk.Tk):
         self.master.bind("<B1-Motion>", self.do_move)
         self.master.bind("<Button-3>", self.do_popup)
 
+        init_pos()
+
         m = Menu(root, tearoff=0)
         m.add_command(label="Copy", command=self.do_copy)
         m.add_command(label="Fix Time", command=self.fix_time)
@@ -494,15 +580,18 @@ class TimeTrackerApp(tk.Tk):
 
         self.update_time()
 
+
         self.master.after(1, lambda: store_fg(bad=True)) #store_fg(bad=True)
         self.master.after(10, lambda: unfocus(self))
 
     def do_about(self):
+        self.menu_showing=False
         tk.messagebox.showinfo(
             title="About DTimer",
             message=ABOUT_TEXT)
 
     def do_help(self):
+        self.menu_showing=False
         tk.messagebox.showinfo(
             title="DTimer HELP",
             message=HELP_TEXT)
@@ -512,6 +601,7 @@ class TimeTrackerApp(tk.Tk):
         self.doom_time=time.time()+a*3600+b*60
 
     def get_time(self):
+        self.menu_showing=False
         root=self.master
         top = tk.Toplevel(root)
         top.title("Set Deadline")
@@ -524,47 +614,71 @@ class TimeTrackerApp(tk.Tk):
         ok_btn.pack()
 
     def fix_time(self):
-
+        self.menu_showing=False
+        from tkinter import Canvas, Scrollbar, CENTER, Frame
         top = tk.Toplevel(self.master)
         top.title('Fix Billable Time')
+
+        top.rowconfigure(0, weight=0)
+        top.rowconfigure(1, weight=1)
+        top.columnconfigure(0, weight=1)
+
+        frame = VerticalScrolledFrame(top)
+        frame.grid(row=1, column=0, sticky="nsew")
+
+        times_frame = frame.interior
+
+        col_sizes = [0,0]
 
         def add(key,value,default,prefix=""):
              self.category_values.append(BooleanVar())
              self.category_values[-1].set(default)
              m=value/60
              self.category_mins.append(m)
-             l=Checkbutton(top, text=f"{prefix} {key} ({m:.2f})", variable=self.category_values[-1], command=lambda: self.fix_time_recalc())
-             l.pack(anchor=tk.W)
+             l=Checkbutton(times_frame, text=f"{prefix} {key} ({m:.2f})", variable=self.category_values[-1], command=lambda: self.fix_time_recalc(), anchor='w',)
+             col=default
+             #l.pack(anchor=tk.W)
+             l.grid(column=col, row=col_sizes[col], sticky=tk.W,pady=0, padx=0)
+             col_sizes[col]+=1
+
         self.category_values = []
         self.category_mins = []
         for k, v in self.title_times.items(): add(k,v,1,RECORD_SYMBOL)
-        for k, v in self.pause_times.items(): add(k,v,0,PAUSE_SYMBOL)
+        for k, v in self.pause_times.items(): add(k,v,0,PAUSE_SYMBOL )
 
         self.fix_time_label=tk.Label(top, text="")
+        self.fix_HHMM_label=tk.Label(times_frame, text="")
         self.fix_time_recalc()
-        self.fix_time_label.pack(anchor=tk.W)
 
+        col=0; self.fix_time_label.grid(column=0, row=0, sticky=tk.W,pady=0, padx=0,)
+        col=1; self.fix_HHMM_label.grid(column=col, row=col_sizes[col], sticky=tk.W,pady=0, padx=0)
 
     def fix_time_recalc(self):
         t=0
         for i in range(len(self.category_mins)):
             t+=self.category_values[i].get()*self.category_mins[i]
-        self.fix_time_label.config(text=f"Minutes: {t:.2f}")
+        self.fix_time_label.config(text=f"Minutes: {t:.2f}" + "  [{:02d}:{:02d}]".format(*divmod(int(t), 60)))
 
 
     def do_doom(self):
-        r=re.compile(r".*\nExpires in: (\d+) hours? (\d+) minutes?\n[$]\d.*",re.MULTILINE|re.DOTALL)
+        self.menu_showing=False
+        r=re.compile(r".*\nExpires in: (?:(\d+) hours?)? ?(?:(\d+) minutes)?\n[$]\d.*",re.MULTILINE|re.DOTALL)
         print("D1")
         unfocus(self)
         copy_all()
         s=self.master.clipboard_get()
         print(s)
-        m=r.match(s)
-        if m:
-            h,m=m.groups()
+        mat=r.match(s)
+        if mat:
+            h,m=mat.groups()
+            if not h:
+                h=0
+            if not m:
+                m=0
             self.doom_time=time.time()+int(h)*3600+int(m)*60
 
     def do_copy(self):
+        self.menu_showing=False
         s=''
         for key,value in self.title_times.items():
             min=value/60
@@ -577,6 +691,7 @@ class TimeTrackerApp(tk.Tk):
 
     def do_popup(self, event):
         m=self.popup_menu
+        self.menu_showing = True
         try:
             m.tk_popup(event.x_root, event.y_root)
         finally:
@@ -621,7 +736,10 @@ class TimeTrackerApp(tk.Tk):
         from datetime import datetime
         dt = datetime.now()
         self.wall_clock.config(text=dt.strftime("%H:%M"))
-
+        #Windows tends to forget this is meant to be above Taskbar
+        #Lets remind windows occasionally
+        if not self.menu_showing:
+            root.attributes("-topmost", True)
         store_fg()
 
         ctime=dt.timestamp()
