@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 Fixes Python scripts
@@ -21,18 +22,6 @@ import re
 import subprocess
 import sys
 
-if os.name == 'nt':
-    #execl is broken on windows, do not use.
-    def execl(*args):
-        lists = [item for item in args]
-        subprocess.call(lists)
-else:
-    from os import execl
-
-if len(sys.argv) == 1:
-    execl(sys.executable, sys.executable , '-u')
-    sys.exit()
-
 def eprint(*args, **kwargs):
     """
     Prints the given arguments to the standard error stream.
@@ -45,6 +34,21 @@ def eprint(*args, **kwargs):
         None
     """
     print(*args, file=sys.stderr, **kwargs)
+
+
+#if os.name == 'nt':
+#execl is broken on windows, do not use.
+def execl(*args):
+    lists = [item for item in args]
+    #eprint(lists)
+    subprocess.call(lists)
+#else:
+#    from os import execl
+
+#if len(sys.argv) == 1:
+#    execl(sys.executable, sys.executable)
+#    sys.exit()
+
 
 def sha256sum(data):
     """
@@ -245,7 +249,8 @@ for B in [1, 2, 3]:
     print({x}")
     print('{x})
     print({x[0]}')
-    print("{not_a_variable}") # Don't assume everything with {} is an f-string
+     # Don't assume all {} are f-strings:
+    print("{not_a_variable}")
 def f(C,S="hello")
     print 'Hello, world'
     def f(z)
@@ -253,7 +258,8 @@ for i in range(10)
     i
 if x == 5
     print 'x is 5'
-    #Note the following won't be fixed. We don't even try to fix multilines
+    #Note the following won't be fixed.
+    #We don't even try to fix multilines
     for x in \\
     [1,2,3]
         print 'x is ', x
@@ -272,15 +278,51 @@ def fix_imports(script):
     Returns:
         str: The modified script with fixed import statements.
     """
+
+
+    functions={}
+    for module_name in "os sys".split():
+        module = __import__(module_name)
+        for word in dir(module):
+            exec(f"if callable({module_name}.{word}): functions[word]=module_name")
+
+    def add_f(module,funcs):
+        for func in funcs.split():
+            functions[func]=module
+    #you can list all functions in a module using something like:
+    #    m='re';b=__import__(m);exec("""for word in dir(b): exec(f"if callable(b.{word}): print('{word}')") """)
+    add_f("time" ,"sleep now gmtime ctime")
+    add_f("os.path", "realpath relpath isabs isdir isfile islink ismount getctime getmtime stat")
+    add_f("base64","ba85decode a85encode b16decode b16encode b32decode b32encode b32hexdecode b32hexencode b64decode b64encode b85decode b85encode standard_b64decode standard_b64encode urlsafe_b64decode urlsafe_b64encode" )
+    add_f("subprocess", "run Popen CalledProcessError CompletedProcess Popen SubprocessError TimeoutExpired check_call call check_output list2cmdline")
+    add_f("filecmp", "cmp clear_cache cmp cmpfiles dircmp")
+    add_f("re", "compile match search sub findall finditer split subn")
+
     missing={}
     for mat in re.finditer(r'^[^\'"#.]*\b([a-zA-Z]\w*)\b[.]', script,re.MULTILINE):
         #eprint(f'Missing Import "{mat[1]}"')
         missing[mat[1]]=None
     for mat in re.finditer(r'^[^\'"#]*\b([a-zA-Z]\w*)\b.*=[.]', script,re.MULTILINE):
         missing[mat[1]]=None
+
+    missing_funcs={}
+    #for mat in re.finditer(r'^[^\'"#.]*\b([a-zA-Z]\w*)[(]', script,re.MULTILINE):
+    for mat in re.finditer(r'^[^\'"#.]*\b([a-zA-Z]\w*)[(]', script,re.MULTILINE):
+        #eprint(f'Found Func "{mat[1]}"')
+        if mat[1] in functions:
+            missing_funcs[mat[1]]=functions[mat[1]]
+    #eprint(missing_funcs)
+    # You can list all the functions in a module with e.g.
+    # m='subprocess';b=__import__(m);exec("""for word in dir(b): exec(f"if callable(b.{word}): print('{word}')") """)
+
     for line in re.finditer(r'import (.*)', script,re.MULTILINE):
         for mat in re.finditer(r'\b(\w+)\b',line[1]):
             missing.pop(mat[1], None)
+            missing_funcs.pop(mat[1], None)
+    #eprint(functions)
+    #eprint(missing_funcs)
+    for mat in re.finditer(r'\s*def\b([a-zA-Z0-9]*)', script,re.MULTILINE):
+        missing_funcs.pop(mat[1], None)
 
     imports = ''
     alias={
@@ -306,6 +348,10 @@ def fix_imports(script):
         if key in missing:
             #eprint(f'Adding Alias {mat[1]}')
             imports += 'import ' + value + '\n'
+
+    for key, value in missing_funcs.items():
+        imports += f'from {value} import {key}\n'
+
     return imports + script
 
 def fix_all(script):
@@ -337,12 +383,25 @@ def fix_all(script):
 if len(sys.argv) == 2:
     if sys.argv[1] == '---demo':
         commented=[]
+        orig_marker='#ORIG#'
         for line in SAMPLE_SCRIPT.splitlines():
-            line=' '+line+' '
-            commented.append(line.replace(' ','#'))
+            #line=' '+line+' '
+            commented.append(orig_marker+line+orig_marker)
             commented.append(line)
-        fixed=fix_all('\n'.join(commented))
-        print(fixed)
+        fixed=orig_marker+"INPUT"+orig_marker+'\nOUTPUT\n'+fix_all('\n'.join(commented))
+        max_len=0
+        for line in fixed.splitlines():
+            max_len=max(max_len,len(line.replace(orig_marker,'')))
+        orig=''
+        demo=''
+       #maxlen=len(max(fixed.splitlines(), key=len))
+        for L in fixed.splitlines():
+            if L.endswith(orig_marker):
+                orig=L.replace(orig_marker,'')
+            else:
+                demo+=orig.ljust(max_len+2)+L+'\n'
+                orig=''
+        print(demo)
         sys.exit()
 
 if len(sys.argv) == 3:
@@ -384,4 +443,6 @@ for fname in sys.argv:
                     x.write(fixed)
                     x.close()
 
-execl(sys.executable, os.path.abspath(sys.argv[1]), *sys.argv[1:])
+#execl(sys.executable, os.path.abspath(sys.argv[1]), *sys.argv[1:])
+execl(sys.executable, *sys.argv[1:])
+
