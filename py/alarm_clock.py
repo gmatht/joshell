@@ -1,31 +1,97 @@
 #!/bin/env python3
+"""
+Talking Musical Console Alarm Clock
+
+When Alarm Time is reached, this clock will reads out the current time every
+minute and play a random song.
+
+This doesn't use X11 or a GUI.  It's meant to be run from the command line.
+You shouldbe able to run this on a very old Laptop without any problems.
+It will move the text around to avoid burn-in.
+
+Created by: John McCabe-Dansted
+Version: 1.0
+
+Arguments:
+    --precache (Pre-cache the 44MB of MP3 speech files)
+           #### DEBUGGING OPTIONS ####
+    --alarm    (Start with the alarm enabled, mainly for debugging)
+    --play     (Just start the play thread without UI or clock)
+
+Keys:
+    q/Escape/Ctrl-C: Quit
+    w: Wake (Silence alarm, allow screen to blank on idle, brown color)
+    a: Alarm (Start alarm, disables screen blanking, energetic cyan color)
+    s: Snooze (Snoozes alarm for 20 minutes)
+    1, 2, ..., 9, 0: Rate the current song, 1..2 will not be played next time
+    n/./>: Next Song (Moves to the next song without rating this one)
+    p/,/<: Previous Song (Moves to the previous song without rating this one)
+    h: Help
+"""
+
 from datetime import datetime
+from math import floor
 import os
+import signal
+import subprocess
 import sys
 import random
 import select
+import threading
 import tty
 import termios
-import pygame
+from PIL import Image, ImageDraw, ImageFont
 
 
-ALARM_TIME=730 # 7:30am
-BLUE_BLOCK_TIME=1700 # 5:00pm
-ANTI_BURNIN_WIDTH=9 # Max x-shift used to reduce burn-in
-LINES=113 #tput lines
-COLS=34   #tput cols
-COLS=113
-LINES=34
-WHITE_CHAR='\u2588'
+### BEGIN CONFIGURATION ###
+ALARM_TIME = 730  # 7:30am
 
-#To list possible colours
-#for i in `seq 0 7`; do tput setaf $i ; echo $i ; done
-SLEEP_COLOR=3 #Sleepy Brown
-WAKE_COLOR=6  #Energetic Cyan
+SNOOZE_SECS = 1200  # 20 minutes
+
+MIN_ANTI_BURNIN_WIDTH = 3  # Mininum x-shift reserved for moving clock face
+MIN_ANTI_BURNIN_HEIGHT = 1  # Mininum y-shift ... (to reduce burn-in)
+WHITE_CHAR = "\u2588"  # U+2588 is full block character, used for large text
+
+VISUAL_24_HOUR_CLOCK = True
+AUDIO_24_HOUR_CLOCK = False
+
+SHUFFLE_SONGS = True
+
+# To list possible colours
+# for i in `seq 0 7`; do tput setaf $i ; echo $i ; done
+SLEEP_COLOR = 3  # Sleepy Brown
+WAKE_COLOR = 6  # Energetic Cyan
+
+MIN_PLAY_RATING = 3  # Minimum rating for rated song (or will not be play song)
+### END CONFIGURATION ###
+
+if VISUAL_24_HOUR_CLOCK:
+    VISUAL_H = "H"
+else:
+    VISUAL_H = "I"
+
+if AUDIO_24_HOUR_CLOCK:
+    AUDIO_H = "H"
+else:
+    AUDIO_H = "I"
+
+if sys.version_info[0] < 3:
+    print("Must use Python 3")
+    sys.exit(1)
+
+if subprocess.call(["which", "ffplay"]) != 0:
+    print("ffplay not found")
+    sys.exit(1)
+
+# Get terminal size
+LINES, COLS = [int(i) for i in os.popen("tput lines cols", "r").read().split()]
+
+lock = threading.RLock()
+
 
 class _GetchUnix:
     """This code snippet defines a `__call__` method that takes an optional
-    argument `wait_seconds` with a default value of 0.1.
+    argument `wait_seconds` with a default value of None (wait forever).
 
     Inside the method, it retrieves the file descriptor of the standard input
     (`sys.stdin.fileno()`), saves the current terminal settings
@@ -41,439 +107,111 @@ class _GetchUnix:
         (`termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)`)
     and returns the value of `ch`."""
 
-    def __call__(self, wait_seconds=0.1):
+    def __call__(self, wait_seconds=None):
         fd = sys.stdin.fileno()
 
         old_settings = termios.tcgetattr(fd)
         try:
             tty.setraw(sys.stdin.fileno())
-            r, w, e = select.select([ fd ], [], [], wait_seconds)
+            r, w, e = select.select([fd], [], [], wait_seconds)
             if fd in r:
                 ch = sys.stdin.read(1)
             else:
-                ch = ''
+                ch = ""
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         return ch
 
 
-def make_text_font():
+def make_font_size(font_size, char_list):
     """
     Generates a dictionary of characters and their corresponding ASCII representations.
 
-    This function iterates over a set of characters and generates a dictionary where each
-    character is mapped to its corresponding ASCII representation. The characters are
-    obtained from the string " :0123456789". For each character, a font is created using
-    the "Loma.ttf" font file with a size of 44. The character is then rendered onto a
-    black image using the white font. The resulting image is converted to a numpy array
-    and the pixels are mapped to either a space (' ') or a hash ('#'). The resulting
-    characters are then flattened into a list of lines and stored in the dictionary.
+    This function iterates over a set of characters and generates a dictionary
+    where each character is mapped to its corresponding ASCII representation.
+    The characters are obtained from the string char_list. For each
+    character, a font is created using the "DejaVuSans-Bold.ttf" font file with
+    the given size The character is then rendered onto a black image using the
+    white font. The pixels are mapped to either a space (' ') or WHITE_CHAR. The
+    resulting characters are then added to a list of lines and stored in the
+    dictionary.
 
     The function trips the top of the characters until a non-blank character is found.
     If a non-blank character is found, the function prints the dictionary and exits.
 
-    If you want to add more characters, simply add them to the string " :0123456789".
-
     Returns:
         None
     """
-    from PIL import Image, ImageDraw, ImageFont
-    import numpy as np
 
-    char_dict={}
-    for char in " 0123456789":
-        myfont = ImageFont.truetype("Loma.ttf", 44)
-        size = myfont.getbbox(char)[2:]
-        img = Image.new("1",size,"black")
-        draw = ImageDraw.Draw(img)
-        draw.text((0, 0), char, "white", font=myfont)
-        pixels = np.array(img, dtype=np.uint8)
-        #white_char='\u2588'
-        chars = np.array([' ','#'], dtype="U1")[pixels]
-        #chars = np.array([' ','#'], dtype="U1")[pixels]
-        strings = chars.view('U' + str(chars.shape[1])).flatten()
-        char_dict[char]=[str(x) for x in strings] #.join(strings)
+    char_dict = {}
+    for char in char_list:
+        myfont = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)
+        size = myfont.getbbox(char)[2:]  # calc the size of text in pixels
+        image = Image.new("1", size, 1)  # create a b/w image
+        draw = ImageDraw.Draw(image)
+        draw.text((0, 0), char, font=myfont)  # render the text to the bitmap
+        strings = []
+        for rownum in range(size[1]):
+            line = ""
+            for colnum in range(size[0]):
+                if image.getpixel((colnum, rownum)):
+                    line += " "
+                else:
+                    line += WHITE_CHAR
+            strings.append(line)
+        char_dict[char] = strings
+
     found_nonblank = False
     while True:
         for key, val in char_dict.items():
-            #print(val[0])
-            if val[0].strip()!='':
+            if val[0].strip() != "":
                 found_nonblank = True
                 break
         if found_nonblank:
             break
         for key, val in char_dict.items():
-            char_dict[key]=val[1:]
-    print(f"text_font={char_dict}".replace(",",",\n").replace("[","[\n "))
-    sys.exit()
-
-text_font={' ': [
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               ',
- '               '],
- '0': [
- '         ######         ',
- '       ##########       ',
- '      ############      ',
- '     ##############     ',
- '    ######    ######    ',
- '    ####       #####    ',
- '   #####        #####   ',
- '   ####          ####   ',
- '   ####          ####   ',
- '  #####          #####  ',
- '  ####            ####  ',
- '  ####            ####  ',
- '  ####            ####  ',
- '  ####            ####  ',
- '  ####            ####  ',
- '  ####            ####  ',
- '  ####            ####  ',
- '  ####            ####  ',
- '  ####            ####  ',
- '  ####            ####  ',
- '  ####            ####  ',
- '  #####          #####  ',
- '   ####          ####   ',
- '   ####          ####   ',
- '   #####        #####   ',
- '    #####      #####    ',
- '    ######    ######    ',
- '     ##############     ',
- '      ############      ',
- '       ##########       ',
- '         ######         '],
- '1': [
- '             ####       ',
- '            #####       ',
- '            #####       ',
- '           ######       ',
- '          #######       ',
- '         ########       ',
- '        #########       ',
- '      ###########       ',
- '     ####### ####       ',
- '     ######  ####       ',
- '     ####    ####       ',
- '     ##      ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       ',
- '             ####       '],
- '2': [
- '         #######        ',
- '      ############      ',
- '     ##############     ',
- '    ################    ',
- '   ######      ######   ',
- '   ####          ####   ',
- '  #####          #####  ',
- '  ####            ####  ',
- '  ####            ####  ',
- '                  ####  ',
- '                  ####  ',
- '                 #####  ',
- '                 ####   ',
- '                #####   ',
- '               #####    ',
- '              #####     ',
- '             #####      ',
- '           ######       ',
- '          ######        ',
- '         ######         ',
- '        #####           ',
- '       #####            ',
- '      #####             ',
- '     #####              ',
- '     ####               ',
- '    ####                ',
- '   ####                 ',
- '   ###################  ',
- '  ####################  ',
- '  ####################  ',
- '  ####################  '],
- '3': [
- '        #######         ',
- '      ###########       ',
- '     #############      ',
- '    ###############     ',
- '   ######     ######    ',
- '   #####        #####   ',
- '  #####          ####   ',
- '  ####           ####   ',
- '  ####           ####   ',
- '                 ####   ',
- '                ####    ',
- '              ######    ',
- '         ##########     ',
- '         ########       ',
- '         ##########     ',
- '         ############   ',
- '               #######  ',
- '                 #####  ',
- '                  ##### ',
- '                   #### ',
- '                   #### ',
- '                   #### ',
- '  ####             #### ',
- '  ####            ##### ',
- '  #####           ####  ',
- '   #####         #####  ',
- '   ######      ######   ',
- '    #################   ',
- '     ##############     ',
- '      ############      ',
- '        #######         '],
- '4': [
- '              ####      ',
- '             #####      ',
- '             #####      ',
- '            ######      ',
- '           #######      ',
- '           #######      ',
- '          ########      ',
- '         #########      ',
- '         #########      ',
- '        ##### ####      ',
- '       #####  ####      ',
- '       #####  ####      ',
- '      #####   ####      ',
- '     #####    ####      ',
- '     #####    ####      ',
- '    #####     ####      ',
- '   #####      ####      ',
- '   ####       ####      ',
- '  #####       ####      ',
- ' #####        ####      ',
- ' #####################  ',
- ' #####################  ',
- ' #####################  ',
- ' #####################  ',
- '              ####      ',
- '              ####      ',
- '              ####      ',
- '              ####      ',
- '              ####      ',
- '              ####      ',
- '              ####      '],
- '5': [
- '      ###############   ',
- '      ###############   ',
- '     ################   ',
- '     ################   ',
- '     ####               ',
- '     ####               ',
- '     ####               ',
- '    #####               ',
- '    ####                ',
- '    ####  ######        ',
- '    #### #########      ',
- '    ################    ',
- '    #################   ',
- '   #######     ######   ',
- '   #####         #####  ',
- '    ###           ####  ',
- '                  ##### ',
- '                   #### ',
- '                   #### ',
- '                   #### ',
- '                   #### ',
- '                   #### ',
- '  ####             #### ',
- '  ####            ####  ',
- '  #####           ####  ',
- '   #####         #####  ',
- '   ######      ######   ',
- '    ################    ',
- '     ##############     ',
- '      ############      ',
- '         ######         '],
- '6': [
- '          ######        ',
- '       ###########      ',
- '      ##############    ',
- '     ###############    ',
- '    ######     ######   ',
- '    #####        #####  ',
- '   #####         #####  ',
- '   ####           ####  ',
- '   ####                 ',
- '   ###                  ',
- '  ####    ######        ',
- '  ####  ##########      ',
- '  #### #############    ',
- '  ###################   ',
- '  ########     ######   ',
- '  #######        #####  ',
- '  ######          ####  ',
- '  #####           ##### ',
- '  #####            #### ',
- '  #####            #### ',
- '  #####            #### ',
- '  #####            #### ',
- '   ####            #### ',
- '   ####           ##### ',
- '   #####          ####  ',
- '    #####        #####  ',
- '    ######     ######   ',
- '     ###############    ',
- '      ##############    ',
- '       ###########      ',
- '         #######        '],
- '7': [
- '   ###################  ',
- '   ###################  ',
- '   ###################  ',
- '   ###################  ',
- '                #####   ',
- '                #####   ',
- '               #####    ',
- '              #####     ',
- '              #####     ',
- '             #####      ',
- '             ####       ',
- '            #####       ',
- '            ####        ',
- '           #####        ',
- '           ####         ',
- '          #####         ',
- '          ####          ',
- '          ####          ',
- '         ####           ',
- '         ####           ',
- '         ####           ',
- '        ####            ',
- '        ####            ',
- '        ####            ',
- '        ####            ',
- '       ####             ',
- '       ####             ',
- '       ####             ',
- '       ####             ',
- '       ####             ',
- '       ####             '],
- '8': [
- '         #######        ',
- '       ###########      ',
- '     ###############    ',
- '    #################   ',
- '    ######     ######   ',
- '   #####         #####  ',
- '   ####           ####  ',
- '   ####           ####  ',
- '   ####           ####  ',
- '   ####           ####  ',
- '    ####         ####   ',
- '    ######     ######   ',
- '     ###############    ',
- '       ###########      ',
- '      #############     ',
- '    #################   ',
- '   ######      ######   ',
- '   #####         #####  ',
- '  #####           ##### ',
- '  ####             #### ',
- '  ####             #### ',
- '  ####             #### ',
- '  ####             #### ',
- '  ####             #### ',
- '  #####           ##### ',
- '   #####         #####  ',
- '   #######      ######  ',
- '    #################   ',
- '     ###############    ',
- '       ############     ',
- '         #######        '],
- '9': [
- '         #######        ',
- '       ###########      ',
- '     ##############     ',
- '    ################    ',
- '    ######     ######   ',
- '   #####        #####   ',
- '   ####          #####  ',
- '  #####           ####  ',
- '  ####            ####  ',
- '  ####            ##### ',
- '  ####            ##### ',
- '  ####            ##### ',
- '  ####            ##### ',
- '  #####           ##### ',
- '   ####          ###### ',
- '   #####        ####### ',
- '    ######     ######## ',
- '    ################### ',
- '     ############# #### ',
- '       ##########  #### ',
- '         ######    #### ',
- '                   ###  ',
- '                  ####  ',
- '   ####           ####  ',
- '   #####         ####   ',
- '   #####         ####   ',
- '    ######     #####    ',
- '    ################    ',
- '     ##############     ',
- '       ###########      ',
- '         #######        ']}
+            char_dict[key] = val[1:]
+    return char_dict
 
 
-for key,val in text_font.items():
-    text_font[key]=[line.replace("#",WHITE_CHAR) for line in val]
+def make_font():
+    """
+    Find the optimal font size based on the
+    available screen space.
 
-#We can run this on old dodgy laptops, but they may have dodgy BIOS clock too.
+    Returns:
+        A dictionary of characters and their corresponding ASCII
+        representations.
+    """
+    made = make_font_size(100, "8")
+    x_factor = COLS / (len(made["8"][0])*4+4)
+    y_factor = LINES / len(made["8"])
+    factor = min(x_factor, y_factor)
+    size = int(factor * 100)-1
+    made = make_font_size(size, "8")
+    while len(made["8"][0]) * 4 > COLS - 3 or len(made["8"]) > LINES - 3:
+        size -= 1
+        made = make_font_size(size, "8")
+    return make_font_size(size, " 0123456789")
+
+
+text_font = make_font()
+# Max x-shift used to reduce burn-in
+ANTI_BURNIN_WIDTH = COLS - 3 - len(text_font["8"][0] * 4)
+font_h = len(text_font["8"])
+ANTI_BURNIN_HEIGHT = LINES - 1 - font_h
+COLON = ["  "] * font_h
+COLON[font_h * 1 // 3] = WHITE_CHAR + WHITE_CHAR
+COLON[font_h * 2 // 3] = WHITE_CHAR + WHITE_CHAR
+
+# We can run this on old dodgy laptops, but they may have dodgy BIOS clock too.
 if datetime.now().year < 2024:
-    os.system('ntpdate pool.ntp.org')
+    os.system("ntpdate pool.ntp.org")
 
-pygame.init()
 
-getch=_GetchUnix()
-#def getch(timeout):
-    #result = subprocess.run(['bash', '-c', f'read -s -n 1 -t {timeout} key; printf "%s" "$key"'], capture_output=True, text=True)
-    #return result.stdout
+getch = _GetchUnix()
+
+
 def replace_first_char_if_zero(s):
     """
     Replaces the first character of a string with a space if it is a zero.
@@ -482,53 +220,58 @@ def replace_first_char_if_zero(s):
         s (str): The input string.
 
     Returns:
-        str: The modified string with the first character replaced by a space if it is a zero.
+        str: The modified string with the first character replaced by a space if
+        it is a zero.
     """
-    if s.startswith('0'):
-        return ' ' + s[1:]
+    if s.startswith("0"):
+        return " " + s[1:]
     return s
-if not os.path.exists('idx'):
-    print("""idx not found. It is meant to have one FLAC/MP3/OGG etc. per line. Run something like:
-    locate *.mp3 > idx
-to create it""")
+
+
+if not os.path.exists("idx"):
+    print(
+        """idx not found. It is meant to have one FLAC/MP3/OGG etc. per line.
+        Run something like:
+            locate *.mp3 > idx
+        to create it"""
+    )
     sys.exit()
-lines=[]
-with open('idx', 'r', encoding='utf-8') as file:
-    # Read all lines into a list
-    #lines = [line.rstrip() for line in file]
-    ratings={}
-    if os.path.exists('idx.review'):
-        with open('idx.review', 'r', encoding='utf-8') as review_file:
-            for line in review_file:
-                line = line.rstrip()
-                rating=int(line[0])
-                if rating==0:
-                    rating=10
-                fname=line[2:]
-                ratings[fname]=rating
-    for line in file:
-        line = line.rstrip()
-        if not line in ratings or ratings[line]>3:
-            lines.append(line)
-i=0
-idx={}
-for line in lines:
-    idx[i]=line
-    i=i+1
-VOICE=pygame.mixer.Channel(0)
-MUSIC=pygame.mixer.Channel(1)
+lines = []
 
-playing=""
-playing_rot=0
-MUSIC.set_volume(0.2)
+ffplay = None
+playing = ""
+voice = None
+command = ""
 
-LOG=open("banner.log", "a", encoding="utf-8");
 
-def play():
+def playable_rating(char):
     """
-    Plays a random sound from the `idx` dictionary using the `MUSIC` channel.
+    Converts the given character to an integer rating and checks if it is
+    greater than or equal to the minimum play rating.
 
-    This function selects a random sound file from the `idx` dictionary and attempts to play it using the `MUSIC` channel. If an exception occurs during the playback, the error message is logged to the `LOG` file.
+    Parameters:
+        char (str): A character representing a rating.
+
+    Returns:
+        bool: True if rating is at least MINIMUM_PLAY_RATING, False otherwise.
+    """
+    rating = int(char)
+    if rating == 0:
+        rating = 10
+    return rating >= MIN_PLAY_RATING
+
+
+def play_music():
+    """
+    Play music from a list of songs.
+
+    This function reads the songs from the 'idx' file and filters out the songs
+    that have a rating less than the minimum play rating. It then shuffles the
+    list of songs if the 'SHUFFLE_SONGS' flag is set. The function then plays
+    each song in the list, one after the other. If the main thread sets the 'q'
+    command, the program exits. If main sets the 'p' command, the previous song
+    is played. Otherwise, the next song in the list is played. The volume of the
+    music is set to 0.2.
 
     Parameters:
         None
@@ -536,19 +279,139 @@ def play():
     Returns:
         None
     """
+    global ffplay
     global playing
-    choice=random.choice(idx)
-    try:
-        MUSIC.play(pygame.mixer.Sound(choice))
-        playing=choice
-    except Exception as e:
-        LOG.write(f"{choice} -- {e}\n")
-#def queue():
-#    choice=random.choice(idx)
-#    try:
-#        MUSIC.queue(pygame.mixer.Sound(choice))
-#    except Exception as e:
-#        os.system(f"printf '%s' '{choice} -- {e}' >> banner.log")
+    global command
+
+    to_play = []
+    with open("idx", "r", encoding="utf-8") as file:
+        # Read all lines into a list
+        # lines = [line.rstrip() for line in file]
+        ratings = {}
+        if os.path.exists("idx.review"):
+            with open("idx.review", "r", encoding="utf-8") as review_file:
+                for line in review_file:
+                    line = line.rstrip()
+                    rating = int(line[0])
+                    if rating == 0:
+                        rating = 10
+                    fname = line[2:]
+                    ratings[fname] = rating
+        for line in file:
+            line = line.rstrip()
+            if not line in ratings or ratings[line] >= MIN_PLAY_RATING:
+                to_play.append(line)
+    if SHUFFLE_SONGS:
+        random.shuffle(to_play)
+    playing = to_play.pop()
+    played = []
+
+    while True:
+        with lock:
+            if command == "q":  # QUIT
+                sys.exit()
+            if command == "p":  # Previous
+                if played:
+                    to_play.append(playing)
+                    playing = played.pop()
+            else:  # Play next song
+                if command != "d":  # Delete Current Song from List
+                    played.append(playing)
+                if not to_play:
+                    if SHUFFLE_SONGS:
+                        random.shuffle(played)
+                    to_play = played
+                    played = []
+                playing = to_play.pop()
+            command = ""
+            ffplay = subprocess.Popen(
+                [
+                    "ffplay",
+                    "-nodisp",
+                    "-autoexit",
+                    "-af",
+                    "volume=0.2",
+                    playing,
+                ],
+                shell=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        ffplay.wait()
+
+#quitting = False
+playing_rot = 0
+
+LOG = open("banner.log", "a", encoding="utf-8")
+
+music_player = None
+
+
+def signal_handler(sig, frame):
+    """
+    Handles the signal received by the program.
+
+    Args:
+        sig (signal.Signals): The signal received by the program.
+        frame (types.FrameType): The current stack frame.
+
+    Returns:
+        None
+
+    This function is called when the program receives a signal.
+     It prints a message indicating that the user pressed Ctrl+C.
+     It then acquires the lock and sends a SIGINT signal to the
+     ffplay and voice processes (if they exist).
+     Finally, it exits the program with a status code of 0.
+
+    Note:
+        This function should be registered as a signal handler using the
+        `signal.signal()` function.
+
+    """
+    print("You pressed Ctrl+C!")
+    with lock:
+        if ffplay:
+            ffplay.send_signal(signal.SIGKILL)
+            ffplay.wait()
+        if voice:
+            voice.send_signal(signal.SIGKILL)
+            voice.wait()
+    sys.exit(0)
+
+
+signal.signal(signal.SIGINT, signal_handler)
+
+
+def play():
+    """
+    Starts playing music if the music player is not already running. If the
+    music player is already running, it waits for the music player to be
+    available before sending a SIGCONT signal to resume playback.
+
+    Parameters:
+        None
+
+    Returns:
+        None
+    """
+    global music_player
+    if music_player is None:
+        music_player = threading.Thread(target=play_music)
+        music_player.start()
+    else:
+        while True:
+            getch(0.1)
+            with lock:
+                if ffplay:
+                    ffplay.send_signal(signal.SIGCONT)
+                    break
+
+
+def pause():
+    with lock:
+        ffplay.send_signal(signal.SIGSTOP)
+
 
 def verbose(now):
     """
@@ -558,18 +421,27 @@ def verbose(now):
         now (datetime): The current datetime object.
 
     Returns:
-        str: A string representing the current time in the format "The time is X minutes past Y", where X is the minute of the hour and Y is the hour of the day. If the minute is 0, it is replaced with a space. If the hour is 0, it is replaced with "midnight".
+        str: A string representing the current time in the format "The time
+             is X minutes past Y", where X is the minute of the hour and Y is
+             the hour of the day. The minute is printed without the leading
+             zero. If the hour is 0, it is replaced with "midnight".
     """
-    verbose=now.strftime("The time is %M minutes past %H o'clock")
-    verbose=verbose.replace(" 0"," ")
-    verbose=verbose.replace(" 0 o'clock"," midnight")
-    return verbose
+    return (
+        now.strftime(f"The time is %M minutes past %{AUDIO_H} o'clock")
+        .replace(" 0", " ")
+        .replace(" 0 o'clock", " midnight")
+    )
+
 
 def precache(now):
     """
     Pre-caches the Google Text To Speech (GTTS) MP3 file for the given time.
 
-    This function takes a datetime object `now` as input and generates an MP3 file for the given time. The file is saved in the "tts" directory with the filename in the format "HHMM.mp3", where HH is the hour of the day and MM is the minute of the hour. If the file already exists, it is not re-generated.
+    This function takes a datetime object `now` as input and generates an
+    MP3 file for the given time. The file is saved in the "tts" directory
+    with the filename in the format "HHMM.mp3", where HH is the hour of the
+    day and MM is the minute of the hour. If the file already exists, it is
+    not re-generated.
 
     Parameters:
         now (datetime): The current datetime object.
@@ -578,31 +450,37 @@ def precache(now):
         str: The filename of the generated MP3 file.
 
     Raises:
-        Exception: If an error occurs while generating the MP3 file. The error message is logged to the "idx.log" file.
+        Exception: If an error occurs while generating the MP3 file,
+        The error message is logged to the "idx.log" file.
     """
-    from gtts import gTTS # Takes 2s to load on my old 32bit machine
-    hhmm_=now.strftime("%H%M")
-    fname=f"tts/{hhmm_}.mp3"
-    #print (str)
+    from gtts import gTTS  # Takes 2s to load on my old 32bit machine
+
+    hhmm_ = now.strftime(f"%{AUDIO_H}%M")
+    fname = f"tts/{hhmm_}.mp3"
+    # print (str)
     if not os.path.exists(fname):
         try:
-            myobj = gTTS(text=verbose(now), lang='en', slow=False)
+            myobj = gTTS(text=verbose(now), lang="en", slow=False)
             myobj.save(fname)
         except Exception as e:
-            os.system(f"printf '%s' '{hhmm_}:{verbose(now)} -- {e}' >> idx.log")
+            LOG.write(f"{hhmm_}:{verbose(now)} -- {e}\n")
     return fname
 
-tput_cmds={"cup 0 0": "[1;1H",
-            "clear": "[H[J[3J",
-            'setaf 0': '[30m',
-            'setaf 1': '[31m',
-            'setaf 2': '[32m',
-            'setaf 3': '[33m',
-            'setaf 4': '[34m',
-            'setaf 5': '[35m',
-            'setaf 6': '[36m',
-            'setaf 7': '[37m'
+
+tput_cmds = {
+    "cup 0 0": "\x1B[1;1H",
+    "clear": "\x1B[H\x1B[J\x1B[3J",
+    "setaf 0": "\x1B[30m",
+    "setaf 1": "\x1B[31m",
+    "setaf 2": "\x1B[32m",
+    "setaf 3": "\x1B[33m",
+    "setaf 4": "\x1B[34m",
+    "setaf 5": "\x1B[35m",
+    "setaf 6": "\x1B[36m",
+    "setaf 7": "\x1B[37m",
 }
+
+
 def tput(cmd):
     """
     Emulates the `tput` terminal control utility command.
@@ -613,23 +491,31 @@ def tput(cmd):
     Returns:
         None
 
-    This function retrieves the corresponding terminal control command from the `tput_cmds` dictionary and prints it to the standard output. The command is printed without a newline character at the end.
+    This function retrieves the corresponding terminal control command from the
+    `tput_cmds` dictionary and prints it to the standard output.
+     The command is printed without a newline character at the end.
 
     Note:
-        The `tput` utility is not called directly in this function. Uncomment the line `os.system("tput "+cmd)` to execute the command using the `os.system` function.
+        The `tput` utility is not called directly in this function.
+         Uncomment the line `os.system("tput "+cmd)` to execute the command
+         using the `os.system` function.
     """
-    print(tput_cmds[cmd],end='')
+    print(tput_cmds[cmd], end="")
+    # This should be equivalent to:)
     #    os.system("tput "+cmd)
-tput (f'setaf {SLEEP_COLOR}') # Set terminal fg to brown
+
+
+tput(f"setaf {SLEEP_COLOR}")  # Set terminal fg to brown
 
 
 def setterm_blank(mins):
     """
-    Set the terminal blank time to the specified number of minutes.
-    Use `setterm_blank(0)` to prevent the terminal from blanking
+    Set the terminal blank time to the specified number of minutes. Use
+    `setterm_blank(0)` to prevent the terminal from blanking
 
     Args:
-        mins (int): The number of minutes to set the blank time to. Must be between 0 and 60.
+        mins (int): The number of minutes to set the blank time to. Must be
+        between 0 and 60.
 
     Raises:
         SystemExit: If the value of `mins` is not between 0 and 60.
@@ -637,27 +523,35 @@ def setterm_blank(mins):
     Returns:
         None
 
-    This function prints the terminal control command to set the blank time to the specified number of minutes. The command is printed without a newline character at the end.
+    This function prints the terminal control command to set the blank time to
+    the specified number of minutes. The command is printed without a newline
+    character at the end.
 
     Note:
-        The `os.system` function is commented out in this function. Uncomment the line `os.system (f"setterm -blank {mins}")` to execute the command using the `os.system` function.
+        The `os.system` function is commented out in this function. Uncomment
+        the line `os.system (f"setterm -blank {mins}")` to execute the command
+        using the `os.system` function.
     """
-    if mins < 0 or mins > 60:
+    if not 0 <= mins <= 60:
         print("mins in setterm(mins) must be in 0..60")
         print("Invalid value {mins} found. Quitting")
         sys.exit()
-    print(f"[9;{mins}]",end='')
-    #os.system (f"setterm -blank {mins}")
+    print(f"\x1B[9;{mins}]", end="")
+    # This should be equivalent to:
+    # os.system (f"setterm -blank {mins}")
 
-last_hh='9999'
-alarm=False
-indent=9
+
+last_h24 = 9999
+alarm = False
+indent = random.randint(0, ANTI_BURNIN_WIDTH)
+v_indent = random.randint(0, ANTI_BURNIN_HEIGHT)
+
 
 def alarm_on():
     """
-    Turns on the alarm and sets the terminal blank time to 0.
-    Sets the terminal foreground color to the WAKE_COLOR (cyan), plays music,
-    and reads out the current time every minute.
+    Turns on the alarm and sets the terminal blank time to 0. Sets the terminal
+    foreground color to the WAKE_COLOR (cyan), plays music, and reads out the
+    current time every minute.
 
     Parameters:
         None
@@ -666,96 +560,167 @@ def alarm_on():
         None
     """
     global alarm
-    alarm=True
+    alarm = True
     setterm_blank(0)
-    tput(f'setaf {WAKE_COLOR}') # Set terminal fg to cyan
+    tput(f"setaf {WAKE_COLOR}")  # Set terminal fg to cyan
     play()
+
 
 if not os.path.exists("tts/"):
     os.system("mkdir tts")
-if len(sys.argv)>1:
-    if sys.argv[1]=="--precache":
-        for hour in range(0,24):
-            for minute in range(0,60):
-                print(
-                    precache(datetime(2000,1,1,hour,minute))
-                )
-    elif sys.argv[1]=="--alarm":
+if len(sys.argv) > 1:
+    if sys.argv[1] == "--precache":
+        for hour in range(0, 24):
+            for minute in range(0, 60):
+                print(precache(datetime(2000, 1, 1, hour, minute)))
+    elif sys.argv[1] == "--alarm":
         alarm_on()
-    elif sys.argv[1]=="--make_text_font" or sys.argv[1]=="--make_font":
-        make_text_font()
+    elif sys.argv[1] == "--play":
+        play_music()
+        sys.exit()
 
-REVIEW=open("idx.review", "a", encoding="utf-8")
+REVIEW = open("idx.review", "a", encoding="utf-8")
 
-tput('clear')
+tput("clear")
+snooze_now = None
 while True:
     tput("cup 0 0")
-    now = datetime.now()
-    wait = 61 - now.second # Wait until one second past the start of the next minute
-    hhmm_=now.strftime("%H%M")
-    hhmm=replace_first_char_if_zero(hhmm_)
-    if int(last_hh) < ALARM_TIME and int(hhmm) >= ALARM_TIME:
+    loop_now = datetime.now()
+    wait = (
+        61 - loop_now.second
+    )  # Wait until one second past the start of the next minute
+    hhmm_ = loop_now.strftime(f"%{VISUAL_H}%M")
+    hhmm = replace_first_char_if_zero(hhmm_)
+    hour24=int(loop_now.strftime(f"%H%M"))
+    if int(hour24) >= ALARM_TIME > last_h24:
         alarm_on()
-    if int(last_hh) < BLUE_BLOCK_TIME and int(hhmm) >= BLUE_BLOCK_TIME:
-        tput(f'setaf {SLEEP_COLOR}') # Set terminal fg to brown
-    last_hh=hhmm
     lines = []
-    for tuple in zip(text_font[hhmm[0]],text_font[hhmm[1]],text_font[hhmm[2]],text_font[hhmm[3]]):
-        lines.append((' '*indent + ''.join(tuple) + ' '*(ANTI_BURNIN_WIDTH-indent)).ljust(COLS-1) )
+    for i in range(0, v_indent):
+        lines.append(" " * (COLS - 1))
+    tf = text_font
+    for quad in zip(tf[hhmm[0]], tf[hhmm[1]], COLON, tf[hhmm[2]], tf[hhmm[3]]):
+        lines.append(
+            (" " * indent + "".join(quad) + " " * (ANTI_BURNIN_WIDTH - indent)).ljust(
+                COLS - 1
+            )
+        )
 
-    while len(lines)<LINES-2:
-        lines.append(' '*(COLS-1))
+    while len(lines) < LINES - 2:
+        lines.append(" " * (COLS - 1))
 
-    indent += random.randint(0,1)
+    indent += random.randint(0, 1)
+    v_indent += random.randint(0, 1)
     if indent > ANTI_BURNIN_WIDTH:
         indent = 0
-    #print()
-    print(playing.ljust(COLS-1)+"\n"+("\n".join(lines)))
+    if v_indent > ANTI_BURNIN_HEIGHT:
+        v_indent = 0
+
+    if snooze_now:
+        print(
+            (
+                " " * indent
+                + f"Snoozing for {(SNOOZE_SECS-(loop_now - snooze_now).seconds)/60:.2f} minutes"
+            ).ljust(COLS - 1),
+            end="",
+        )
+    elif not alarm:
+        print(" " * (COLS - 1), end="")
+    print("\n" + ("\n".join(lines)))
     tput("cup 0 0")
-    user_ch=""
+    user_ch = ""
     if alarm:
-        MUSIC.pause()
-        fn=precache(now)
-        if os.path.exists(fn):
-            VOICE.play(pygame.mixer.Sound(fn))
-        else:
-            os.system(f"printf '%s' '{verbose(now)}' | espeak -a 200")
-        user_ch=getch(4).lower()
-        MUSIC.unpause()
-        last_second=now.second
-        while not user_ch:
-            now=datetime.now()
-            if now.second < last_second:
-                break
-            last_second=now.second
-            if not MUSIC.get_busy():
-                play()
+        fn = precache(loop_now)
+        if last_h24 != hour24:
+            if os.path.exists(fn):
+                # It can take a few seconds for audio to start
+                # Add adelay so those seconds don't go missing
+                if voice:
+                    voice.send_signal(signal.SIGINT)
+                    voice.wait()
+                voice = subprocess.Popen(
+                    ["ffplay", "-nodisp", "-autoexit", "-af", "adelay=3000", fn],
+                    shell=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
             else:
-                rot_str=(f"  [{now.second}] "+playing).ljust(COLS-1)
-                if playing_rot>len(rot_str):
-                    playing_rot=0
-                else:
-                    playing_rot+=1
-                tput("cup 0 0")
-                print((rot_str[playing_rot:]+rot_str[0:playing_rot])[0:COLS-1])
-            user_ch=getch(0.25).lower()
+                os.system(f"""printf '%s' "{verbose(loop_now)}" | espeak -a 200""")
+        play()
+        last_second = loop_now.second
+        user_ch = ""
+        while not user_ch:
+            loop_now = datetime.now()
+            if loop_now.second < last_second:
+                break
+            last_second = loop_now.second
+            with lock:
+                rot_str = (f"  [{loop_now.second}] " + playing).ljust(COLS - 1)
+            if playing_rot > len(rot_str):
+                playing_rot = 0
+            else:
+                playing_rot += 1
+            tput("cup 0 0")
+            print((rot_str[playing_rot:] + rot_str[0:playing_rot])[0 : COLS - 1])
+            user_ch = getch(0.2).lower()
             if user_ch.isdigit():
                 REVIEW.write(f"{user_ch} {playing}\n")
-                if user_ch < '6':
-                    play()
-                user_ch=''
-    elif not user_ch:
-        user_ch=getch(wait).lower()
+                if not playable_rating(user_ch):
+                    with lock:
+                        command='d' # Don't play again
+                        ffplay.send_signal(signal.SIGINT)
+                        ffplay.send_signal(signal.SIGCONT)
+                        ffplay.wait()
+                user_ch = ""
+            elif not user_ch:
+                pass
+            elif user_ch in "n.>p,<":
+                with lock:
+                    if user_ch in "p,<":
+                        command='p'
+                    ffplay.send_signal(signal.SIGINT)
+                    ffplay.send_signal(signal.SIGCONT)
+                    ffplay.wait()
+                user_ch = ""
 
-    print(f"Got Ch '{user_ch}'")
-    if user_ch == 'q':
+    elif not user_ch:
+        user_ch = getch(wait).lower()
+
+    if not user_ch:
+        continue
+    asc = ord(user_ch)
+    print(f"Got Ch '{user_ch}' --  '{asc}")
+
+    last_h24 = hour24
+    if user_ch == "q" or asc in [3, 27]:
         print("Quit")
+        with lock:
+            command = "q"
+            if ffplay:
+                ffplay.send_signal(signal.SIGCONT)
+                ffplay.send_signal(signal.SIGINT)
+                ffplay.wait()
+            if voice:
+                voice.send_signal(signal.SIGINT)
+                voice.wait()
         break
-    elif user_ch == 'w':
-        alarm=False
-        for i in [0, 1]:
-            pygame.mixer.Channel(i).stop()
-        setterm_blank(5)
-        tput(f'setaf {SLEEP_COLOR}') # Set terminal fg to brown
-    elif user_ch == 'a':
+    if user_ch in "ws":
+        alarm = False
+        with lock:
+            if ffplay:
+                ffplay.send_signal(signal.SIGSTOP)
+        if voice:
+            voice.send_signal(signal.SIGINT)
+            voice.wait()
+        setterm_blank(5)  # Let terminal go blank after 5 minutes inactivity
+        tput(f"setaf {SLEEP_COLOR}")  # Set terminal fg to brown
+        if user_ch == "s":
+            snooze_now = datetime.now()
+        else:
+            snooze_now = None
+    elif user_ch == "a" or snooze_now and (loop_now - snooze_now).seconds > SNOOZE_SECS:
         alarm_on()
+        snooze_now = None
+    if user_ch == "h":
+        tput("clear")
+        print(__doc__)
+        getch(None)
