@@ -10,6 +10,7 @@ You shouldbe able to run this on a very old Laptop without any problems.
 It will move the text around to avoid burn-in.
 
 Created by: John McCabe-Dansted
+Version: 1.2 (2024-08-08) Fixed bug with snooze and tidy up.
 Version: 1.1 (2024-08-08) Now warn need python3 and name change.
 
 Usage:
@@ -35,7 +36,6 @@ Keys:
 """
 
 from datetime import datetime
-from math import floor
 import os
 import signal
 import subprocess
@@ -70,6 +70,8 @@ WAKE_COLOR = 6  # Energetic Cyan
 MIN_PLAY_RATING = 3  # Minimum rating for rated song (or will not be play song)
 ### END CONFIGURATION ###
 
+f'' # YOU NEED PYTHON 3. TRY: python3 console_alarm_clock.py
+
 if VISUAL_24_HOUR_CLOCK:
     VISUAL_H = "H"
 else:
@@ -79,10 +81,6 @@ if AUDIO_24_HOUR_CLOCK:
     AUDIO_H = "H"
 else:
     AUDIO_H = "I"
-
-if sys.version_info[0] < 3:
-    print("Must use Python 3")
-    sys.exit(1)
 
 if subprocess.call(["which", "ffplay"]) != 0:
     print("ffplay not found")
@@ -431,7 +429,7 @@ def verbose(now):
              the hour of the day. The minute is printed without the leading
              zero. If the hour is 0, it is replaced with "midnight".
     """
-    txt=f"The time is %M minutes past %{AUDIO_H} o'clock" # <- IF YOU ARE SEEING THIS IN AN ERROR YOU NEED PYTHON 3
+    txt=f"The time is %M minutes past %{AUDIO_H} o'clock"
     return (txt.replace(" 0", " ").replace(" 0 o'clock", " midnight"))
 
 
@@ -618,10 +616,16 @@ while True:
         v_indent = 0
 
     if snooze_now:
+        snooze_in_secs = (SNOOZE_SECS - (loop_now - snooze_now).seconds)
+        if snooze_in_secs < 1:
+            alarm_on()
+            snooze_now = None
+        else:
+            wait = min(1,snooze_in_secs)
         print(
             (
                 " " * indent
-                + f"Snoozing for {(SNOOZE_SECS-(loop_now - snooze_now).seconds)/60:.2f} minutes"
+                + f"Snoozing for {snooze_in_secs/60:.2f} minutes"
             ).ljust(COLS - 1),
             end="",
         )
@@ -719,7 +723,7 @@ while True:
             snooze_now = datetime.now()
         else:
             snooze_now = None
-    elif user_ch == "a" or snooze_now and (loop_now - snooze_now).seconds > SNOOZE_SECS:
+    elif user_ch == "a":
         alarm_on()
         snooze_now = None
     if user_ch == "h":
