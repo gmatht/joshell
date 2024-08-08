@@ -12,6 +12,11 @@ It will move the text around to avoid burn-in.
 Created by: John McCabe-Dansted
 Version: 1.0
 
+Usage:
+    python3 alarm_clock.py
+            OR
+    chmod +x alarm_clock.py && ./alarm_clock.py
+
 Arguments:
     --precache (Pre-cache the 44MB of MP3 speech files)
            #### DEBUGGING OPTIONS ####
@@ -426,11 +431,8 @@ def verbose(now):
              the hour of the day. The minute is printed without the leading
              zero. If the hour is 0, it is replaced with "midnight".
     """
-    return (
-        now.strftime(f"The time is %M minutes past %{AUDIO_H} o'clock")
-        .replace(" 0", " ")
-        .replace(" 0 o'clock", " midnight")
-    )
+    txt=f"The time is %M minutes past %{AUDIO_H} o'clock" # <- IF YOU ARE SEEING THIS IN AN ERROR YOU NEED PYTHON 3
+    return (txt.replace(" 0", " ").replace(" 0 o'clock", " midnight"))
 
 
 def precache(now):
