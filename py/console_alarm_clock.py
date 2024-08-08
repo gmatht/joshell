@@ -10,12 +10,12 @@ You shouldbe able to run this on a very old Laptop without any problems.
 It will move the text around to avoid burn-in.
 
 Created by: John McCabe-Dansted
-Version: 1.0
+Version: 1.1 (2024-08-08) Now warn need python3 and name change.
 
 Usage:
-    python3 alarm_clock.py
+    python3 console_alarm_clock.py
             OR
-    chmod +x alarm_clock.py && ./alarm_clock.py
+    chmod +x console_alarm_clock.py && ./console_alarm_clock.py
 
 Arguments:
     --precache (Pre-cache the 44MB of MP3 speech files)
