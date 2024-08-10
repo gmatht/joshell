@@ -10,13 +10,14 @@ You shouldbe able to run this on a very old Laptop without any problems.
 It will move the text around to avoid burn-in.
 
 Created by: John McCabe-Dansted
+Version: 1.3 (2024-08-10) Rename to music_clock.py (Unique & short)
 Version: 1.2 (2024-08-08) Fixed bug with snooze and tidy up.
 Version: 1.1 (2024-08-08) Now warn need python3 and name change.
 
 Usage:
-    python3 console_alarm_clock.py
+    python3 music_clock.py
             OR
-    chmod +x console_alarm_clock.py && ./console_alarm_clock.py
+    chmod +x music_clock.py && ./music_clock.py
 
 Arguments:
     --precache (Pre-cache the 44MB of MP3 speech files)
@@ -70,7 +71,7 @@ WAKE_COLOR = 6  # Energetic Cyan
 MIN_PLAY_RATING = 3  # Minimum rating for rated song (or will not be play song)
 ### END CONFIGURATION ###
 
-f'' # YOU NEED PYTHON 3. TRY: python3 console_alarm_clock.py
+f'' # YOU NEED PYTHON 3. TRY: python3 music_clock.py
 
 if VISUAL_24_HOUR_CLOCK:
     VISUAL_H = "H"
