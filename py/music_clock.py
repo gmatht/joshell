@@ -2,14 +2,16 @@
 """
 Talking Musical Console Alarm Clock
 
-When Alarm Time is reached, this clock will reads out the current time every
+When Alarm Time is reached, this clock will read out the current time every
 minute and play a random song.
 
 This doesn't use X11 or a GUI.  It's meant to be run from the command line.
-You shouldbe able to run this on a very old Laptop without any problems.
+You should be able to run this on a very old Laptop without any problems.
+E.g. Slackware 14 + music_clock.py uses about (120+40=160) MB of RAM.
 It will move the text around to avoid burn-in.
 
 Created by: John McCabe-Dansted
+Version: 1.4 (2024-08-13) Fix bug preventing alarm triggering + fix voice
 Version: 1.3 (2024-08-10) Rename to music_clock.py (Unique & short)
 Version: 1.2 (2024-08-08) Fixed bug with snooze and tidy up.
 Version: 1.1 (2024-08-08) Now warn need python3 and name change.
@@ -20,7 +22,7 @@ Usage:
     chmod +x music_clock.py && ./music_clock.py
 
 Arguments:
-    --precache (Pre-cache the 44MB of MP3 speech files)
+    --precache (Pre-cache the 22/44MB of MP3 speech files)
            #### DEBUGGING OPTIONS ####
     --alarm    (Start with the alarm enabled, mainly for debugging)
     --play     (Just start the play thread without UI or clock)
@@ -346,7 +348,7 @@ def play_music():
 #quitting = False
 playing_rot = 0
 
-LOG = open("banner.log", "a", encoding="utf-8")
+LOG = open("idx.log", "a", encoding="utf-8")
 
 music_player = None
 
@@ -430,7 +432,7 @@ def verbose(now):
              the hour of the day. The minute is printed without the leading
              zero. If the hour is 0, it is replaced with "midnight".
     """
-    txt=f"The time is %M minutes past %{AUDIO_H} o'clock"
+    txt=now.strftime(f"The time is %M minutes past %{AUDIO_H} o'clock")
     return (txt.replace(" 0", " ").replace(" 0 o'clock", " midnight"))
 
 
@@ -637,7 +639,7 @@ while True:
     user_ch = ""
     if alarm:
         fn = precache(loop_now)
-        if last_h24 != hour24:
+        if last_h24 != int(hour24):
             if os.path.exists(fn):
                 # It can take a few seconds for audio to start
                 # Add adelay so those seconds don't go missing
@@ -692,12 +694,14 @@ while True:
     elif not user_ch:
         user_ch = getch(wait).lower()
 
+    last_h24 = hour24
+
     if not user_ch:
         continue
     asc = ord(user_ch)
     print(f"Got Ch '{user_ch}' --  '{asc}")
 
-    last_h24 = hour24
+
     if user_ch == "q" or asc in [3, 27]:
         print("Quit")
         with lock:
