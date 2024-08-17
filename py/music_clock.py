@@ -11,7 +11,7 @@ E.g. Slackware 14 + music_clock.py uses about (120+40=160) MB of RAM.
 It will move the text around to avoid burn-in.
 
 Created by: John McCabe-Dansted
-Version: 1.4 (2024-08-13) Fix bug preventing alarm triggering + fix voice
+Version: 1.4 (2024-08-13) Fix bug preventing alarm triggering + fix voice.
 Version: 1.3 (2024-08-10) Rename to music_clock.py (Unique & short)
 Version: 1.2 (2024-08-08) Fixed bug with snooze and tidy up.
 Version: 1.1 (2024-08-08) Now warn need python3 and name change.
@@ -624,7 +624,7 @@ while True:
             alarm_on()
             snooze_now = None
         else:
-            wait = min(1,snooze_in_secs)
+            wait = max(1,snooze_in_secs)
         print(
             (
                 " " * indent
