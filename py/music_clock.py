@@ -11,7 +11,7 @@ E.g. Slackware 14 + music_clock.py uses about (120+40=160) MB of RAM.
 It will move the text around to avoid burn-in.
 
 Created by: John McCabe-Dansted
-Version: 1.4 (2024-08-13) Fix bug preventing alarm triggering + fix voice.
+Version: 1.4 (2024-08-13) Fix bug preventing alarm triggering + fix voice
 Version: 1.3 (2024-08-10) Rename to music_clock.py (Unique & short)
 Version: 1.2 (2024-08-08) Fixed bug with snooze and tidy up.
 Version: 1.1 (2024-08-08) Now warn need python3 and name change.
@@ -55,6 +55,8 @@ from PIL import Image, ImageDraw, ImageFont
 ALARM_TIME = 730  # 7:30am
 
 SNOOZE_SECS = 1200  # 20 minutes
+
+WAKE_BLANK_MINS = 20
 
 MIN_ANTI_BURNIN_WIDTH = 3  # Mininum x-shift reserved for moving clock face
 MIN_ANTI_BURNIN_HEIGHT = 1  # Mininum y-shift ... (to reduce burn-in)
@@ -722,7 +724,7 @@ while True:
         if voice:
             voice.send_signal(signal.SIGINT)
             voice.wait()
-        setterm_blank(5)  # Let terminal go blank after 5 minutes inactivity
+        setterm_blank(WAKE_BLANK_MINS)  # Let terminal go blank after inactivity
         tput(f"setaf {SLEEP_COLOR}")  # Set terminal fg to brown
         if user_ch == "s":
             snooze_now = datetime.now()
