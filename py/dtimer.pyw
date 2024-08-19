@@ -610,7 +610,8 @@ class TimeTrackerApp(tk.Tk):
         time_picker.setHours(1)
         time_picker.setMinutes(0)
         time_picker.pack(expand=True, fill="both")
-        ok_btn = tk.Button(top, text="Set Doom Clock", command=lambda: self.updateTime(time_picker.time()))
+        ok_btn = tk.Button(top, text="Set Doom Clock", command=lambda:
+                           self.updateTime(time_picker.time()))
         ok_btn.pack()
 
     def fix_time(self):
@@ -643,8 +644,9 @@ class TimeTrackerApp(tk.Tk):
 
         self.category_values = []
         self.category_mins = []
-        for k, v in self.title_times.items(): add(k,v,1,RECORD_SYMBOL)
-        for k, v in self.pause_times.items(): add(k,v,0,PAUSE_SYMBOL )
+        for k, v in sorted(self.title_times.items(), key=lambda item: -item[1]): add(k,v,1,RECORD_SYMBOL)
+        for k, v in sorted(self.pause_times.items(), key=lambda item: -item[1]): add(k,v,0,RECORD_SYMBOL)
+        #for k, v in self.pause_times.items().sort(key=lambda x: -x[1]): add(k,v,0,PAUSE_SYMBOL )
 
         self.fix_time_label=tk.Label(top, text="")
         self.fix_HHMM_label=tk.Label(times_frame, text="")
