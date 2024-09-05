@@ -11,6 +11,10 @@ TIME_PLAY=2
 MIN_ORANGE=30
 MIN_RED=10
 
+LOG_TIME=True # Write time information to LOG file
+ALSO_LOG_PAUSE=True # Also log while not recording billable time
+DAT_EXTENTIONS=True # DataAnnotation Tech Specific Features
+
 ### END CONFIG ###
 
 # Table of Contents:
@@ -23,17 +27,23 @@ HELP_TEXT="""
 DTimer was designed to be used as a timer for work,
 Specifically for Data Annotation Tech.
 
-Created by: John McCabe-Dansted
-Version: 0.5
+Created by: John McCabe-Dansted (and code snippets from StackOverflow)
+License: CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/
+Version: 0.6
 
 If you want to work for DAT you can use my referral code:
 2ZbHGEA
 
+New in 0.6: DAT_EXTENSIONS (Enter Work Time) and LOG_TIME
 New in 0.5: UI Enhancements, Doom Clock supports <1hr too.
 New in 0.4: Removed Linux dependancy on Unifont
 New in 0.3: Tested and fixed install on Ubuntu
 New in 0.2: Basic Linux Support and offers to download missing files
   - What works in Linux may depend on your window manager
+
+TODO: Support MacOS, Reduce size of logs.
+Bug:  Sometimes the GUI disapears behind the taskbar.
+      Set TaskBar to autohide or open log/dtimer_TIMESTAMP.tsv
 
 --------------------------------------------
 
@@ -433,8 +443,6 @@ else:
 
 from tkinter import ttk
 class VerticalScrolledFrame(ttk.Frame):
-
-
     """A pure Tkinter scrollable frame that actually works!
     * Use the 'interior' attribute to place widgets inside the scrollable frame.
     * Construct and pack/place/grid normally.
@@ -476,6 +484,15 @@ class VerticalScrolledFrame(ttk.Frame):
                 # Update the inner frame's width to fill the canvas.
                 canvas.itemconfigure(interior_id, width=canvas.winfo_width())
         canvas.bind('<Configure>', _configure_canvas)
+
+if LOG_TIME:
+    LOG_PATH = 'log'
+    if not os.path.exists(LOG_PATH):
+        os.makedirs(LOG_PATH)
+### My Code ###
+    timestamp=datetime.now().strftime("%Y%H%M%S")
+    log_fname=os.path.join('log', f'dtimer_{timestamp}.tsv')
+    log_file=open(log_fname, "a", encoding="utf-8")
 
 def init_pos():
     #root = tk.Tk() # create a Tk root window
@@ -569,7 +586,8 @@ class TimeTrackerApp(tk.Tk):
         m = Menu(root, tearoff=0)
         m.add_command(label="Copy", command=self.do_copy)
         m.add_command(label="Fix Time", command=self.fix_time)
-        m.add_command(label="Doom ^A^C", command=self.do_doom)
+        if DAT_EXTENTIONS:
+            m.add_command(label="Doom ^A^C", command=self.do_doom)
         m.add_command(label="Doom Picker", command=self.get_time)
         m.add_separator()
         m.add_command(label="Restart", command=restart)
@@ -578,6 +596,8 @@ class TimeTrackerApp(tk.Tk):
         m.add_command(label="Help", command=self.do_help)
         self.popup_menu = m
 
+
+        self.last_hhmm=""
         self.update_time()
 
 
@@ -669,6 +689,14 @@ class TimeTrackerApp(tk.Tk):
         unfocus(self)
         copy_all()
         s=self.master.clipboard_get()
+
+        if "DataAnnotation" not in s:
+            tk.messagebox.showwarning("Enter Work Mode", "You do not appear to be in work mode\nPlease Enter Work Mode Now.")
+        if "Report Time" in s:
+            tk.messagebox.showwarning("Enter Work Mode", "You appear to be on DAT's main screen. Please remember to press 'Enter Work Mode' after selecting a project.")
+        elif "Enter Work Mode" in s:
+            tk.messagebox.showwarning("Could not find DataAnnotation", "You do not appear to have the DataAnnotation Window in the foreground.\nUnable to check Work Mode and Deadlines.")
+
         print(s)
         mat=r.match(s)
         if mat:
@@ -724,6 +752,8 @@ class TimeTrackerApp(tk.Tk):
         self.toggle_time=time.time()
         self.recording = not self.recording
         if self.recording:
+            if DAT_EXTENTIONS:
+                self.do_doom()
             self.button.config(text=PAUSE_SYMBOL)
         else:
             self.button.config(text=RECORD_SYMBOL)
@@ -736,8 +766,13 @@ class TimeTrackerApp(tk.Tk):
 
     def update_time(self):
         from datetime import datetime
+        global log_file
+        #Move this to the top to see if it fixes the timer hiding behind the taskbar
+        self.master.after(1000, self.update_time)  # Update every 1000 milliseconds
         dt = datetime.now()
-        self.wall_clock.config(text=dt.strftime("%H:%M"))
+        hhmm=dt.strftime("%H:%M")
+        self.wall_clock.config(text=hhmm)
+
         #Windows tends to forget this is meant to be above Taskbar
         #Lets remind windows occasionally
         if not self.menu_showing:
@@ -761,7 +796,20 @@ class TimeTrackerApp(tk.Tk):
         else:
             self.doom_label.config(text="00:00:00")
         self.doom_label.config(fg=fg)
-        if get_idle_duration() > 60:
+        idle_duration=get_idle_duration()
+
+        if LOG_TIME:
+            if self.last_hhmm != hhmm:
+                self.last_hhmm=hhmm
+                log_file.write("T   "+hhmm+"\n")
+            if self.recording:
+                status="R"
+            else:
+                status="P"
+            if ALSO_LOG_PAUSE or self.recording():
+                log_file.write(f"{status}\t{idle_duration:.0f}\t{addtime:.4f}\t{title}\n")
+
+        if idle_duration > 60:
             title = "IDLE"
 
         if self.recording:
@@ -782,7 +830,6 @@ class TimeTrackerApp(tk.Tk):
         if TIME_WORK*TIME_PLAY:
             self.button.configure(bg=bg)
 
-        self.master.after(1000, self.update_time)  # Update every 1000 milliseconds
         self.last_time = ctime
 
 root = tk.Tk()
