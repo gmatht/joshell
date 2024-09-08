@@ -15,6 +15,8 @@ LOG_TIME=True # Write time information to LOG file
 ALSO_LOG_PAUSE=True # Also log while not recording billable time
 DAT_EXTENTIONS=True # DataAnnotation Tech Specific Features
 
+GUI_TITLE="DTimer : FOREGROUND"
+
 ### END CONFIG ###
 
 # Table of Contents:
@@ -273,7 +275,7 @@ if os.name=='nt':
             if bad_hwnd!=hwnd:
                 last_hwnd=user32.GetForegroundWindow(None)
 
-    def recover_old_process():
+    def recover_old_process(opts):
         #See: https://gist.github.com/jerblack/2b294916bd46eac13da7d8da48fcf4ab
         import ctypes
         user32 = ctypes.windll.user32
@@ -288,7 +290,7 @@ if os.name=='nt':
         # get handle for Notepad window
         # non-zero value for handle should mean it found a window that matches
         #handle = user32.FindWindowW('Time Tracker', None)
-        handle = user32.FindWindowW(None, 'Time Tracker')
+        handle = user32.FindWindowW(None, GUI_TITLE)
         # or
         #handle = user32.FindWindowW(None, u'Untitled - Notepad')
 
@@ -302,21 +304,21 @@ if os.name=='nt':
         # move window using handle
         # MoveWindow(handle, x, y, height, width, repaint(bool))
         #user32.MoveWindow(handle, 100, 100, 400, 400, True)
-        print(handle)
-        user32.SetWindowPos(handle, 0, 0, 0, 110, 110, 0x0001)
+        #print(handle)
+        user32.SetWindowPos(handle, 0, 0, 0, 110, 110, opts)
 
-    recover_old_process()
+    recover_old_process(0x001)
 
     def topmost():
         root.attributes("-topmost", True)
-
+        recover_old_process(0x003)
 
     def unfocus(tk):
         global last_hwnd
         user32.SetForegroundWindow(last_hwnd)
         #Windows tends to forget this is meant to be above Taskbar
         #Lets remind windows occasionally
-        root.attributes("-topmost", True)
+        topmost()
         root.after(10, topmost())
         #root.after(100, topmost())
         #root.after(200, topmost())
@@ -567,7 +569,7 @@ def copy_all():
         if os.system("sleep 0.1 && xdotool key ctrl+a && sleep 0.1 && xdotool key ctrl+c")==0:
             return
     print("d2")
-    kc=controller()
+    kc=Controller()
     def s(): sleep(0.1)
     def p(k):
         print(k)
@@ -587,7 +589,7 @@ def copy_all():
 class TimeTrackerApp(tk.Tk):
     def __init__(self, master):
         self.master = master
-        self.master.title("Time Tracker")
+        self.master.title(GUI_TITLE)
         self.master.overrideredirect(True)
         self.menu_showing=False
         if os.name != 'nt':
@@ -823,7 +825,8 @@ class TimeTrackerApp(tk.Tk):
         #Windows tends to forget this is meant to be above Taskbar
         #Lets remind windows occasionally
         if not self.menu_showing:
-            root.attributes("-topmost", True)
+            topmost()
+            #root.attributes("-topmost", True)
         store_fg()
 
         ctime=dt.timestamp()
