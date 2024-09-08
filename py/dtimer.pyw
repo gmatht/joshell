@@ -34,6 +34,7 @@ Version: 0.6
 If you want to work for DAT you can use my referral code:
 2ZbHGEA
 
+New in 0.7: Move old GUI to 0,0 if started again
 New in 0.6: DAT_EXTENSIONS (Enter Work Time) and LOG_TIME
 New in 0.5: UI Enhancements, Doom Clock supports <1hr too.
 New in 0.4: Removed Linux dependancy on Unifont
@@ -44,6 +45,7 @@ New in 0.2: Basic Linux Support and offers to download missing files
 TODO: Support MacOS, Reduce size of logs.
 Bug:  Sometimes the GUI disapears behind the taskbar.
       Set TaskBar to autohide or open log/dtimer_TIMESTAMP.tsv
+      If you run it again, the old process should reappear at 0,0
 
 --------------------------------------------
 
@@ -78,7 +80,13 @@ RECORD_SYMBOL="\u23FA" # Unicode for record symbol
 import os, sys, re, shutil
 from tkinter import Tk;
 
+def close_log():
+    if LOG_TIME:
+        log_file.close()
+        os.system("gzip " + log_fname)
+
 def restart():
+    close_log()
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
 def replace_last_occurrence(s, old, new):
@@ -264,6 +272,40 @@ if os.name=='nt':
             hwnd = user32.GetForegroundWindow(None)
             if bad_hwnd!=hwnd:
                 last_hwnd=user32.GetForegroundWindow(None)
+
+    def recover_old_process():
+        #See: https://gist.github.com/jerblack/2b294916bd46eac13da7d8da48fcf4ab
+        import ctypes
+        user32 = ctypes.windll.user32
+
+        # get screen resolution of primary monitor
+        #res = (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))
+        # res is (2293, 960) for 3440x1440 display at 150% scaling
+        #user32.SetProcessDPIAware()
+        #res = (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))
+        # res is now (3440, 1440) for 3440x1440 display at 150% scaling
+
+        # get handle for Notepad window
+        # non-zero value for handle should mean it found a window that matches
+        #handle = user32.FindWindowW('Time Tracker', None)
+        handle = user32.FindWindowW(None, 'Time Tracker')
+        # or
+        #handle = user32.FindWindowW(None, u'Untitled - Notepad')
+
+        # meaning of 2nd parameter defined here
+        # https://msdn.microsoft.com/en-us/library/windows/desktop/ms633548(v=vs.85).aspx
+        # minimize window using handle
+        #user32.ShowWindow(handle, 6)
+        # maximize window using handle
+        #user32.ShowWindow(handle, 9)
+
+        # move window using handle
+        # MoveWindow(handle, x, y, height, width, repaint(bool))
+        #user32.MoveWindow(handle, 100, 100, 400, 400, True)
+        print(handle)
+        user32.SetWindowPos(handle, 0, 0, 0, 110, 110, 0x0001)
+
+    recover_old_process()
 
     def topmost():
         root.attributes("-topmost", True)
@@ -506,7 +548,7 @@ def init_pos():
     hs = t.winfo_screenheight() # height of the screen
 
     # calculate x and y coordinates for the Tk root window
-    x = (ws-2)*3/4 -20 # - 100
+    x = (ws-2)*2/3 -20 # - 100
     y = hs - h -2 # - 100
 
     #x=0
@@ -520,12 +562,12 @@ def init_pos():
 
 def copy_all():
     if os.name!='nt':
-        #pynput should work in Linux, but it doesn't seem to
-        #You may have to play a bit with this to get it to work with your window manager.
+        #pynput should work in linux, but it doesn't seem to
+        #you may have to play a bit with this to get it to work with your window manager.
         if os.system("sleep 0.1 && xdotool key ctrl+a && sleep 0.1 && xdotool key ctrl+c")==0:
             return
-    print("D2")
-    kc=Controller()
+    print("d2")
+    kc=controller()
     def s(): sleep(0.1)
     def p(k):
         print(k)
@@ -591,18 +633,20 @@ class TimeTrackerApp(tk.Tk):
         m.add_command(label="Doom Picker", command=self.get_time)
         m.add_separator()
         m.add_command(label="Restart", command=restart)
-        m.add_command(label="Quit", command=self.master.destroy)
+        m.add_command(label="Quit", command=self.do_quit)
         m.add_separator()
         m.add_command(label="Help", command=self.do_help)
         self.popup_menu = m
 
-
         self.last_hhmm=""
         self.update_time()
 
-
         self.master.after(1, lambda: store_fg(bad=True)) #store_fg(bad=True)
         self.master.after(10, lambda: unfocus(self))
+
+    def do_quit(self):
+        close_log()
+        self.master.destroy()
 
     def do_about(self):
         self.menu_showing=False
@@ -684,28 +728,31 @@ class TimeTrackerApp(tk.Tk):
 
     def do_doom(self):
         self.menu_showing=False
-        r=re.compile(r".*\nExpires in: (?:(\d+) hours?)? ?(?:(\d+) minutes)?\n[$]\d.*",re.MULTILINE|re.DOTALL)
-        print("D1")
+        r=re.compile(r".*\nExpires in: (?:(\d+) days? )?(?:(\d+) hours?)? ?(?:(\d+) minutes)?\n[$]\d.*",re.MULTILINE|re.DOTALL)
+        #print("D1")
         unfocus(self)
         copy_all()
         s=self.master.clipboard_get()
 
         if "DataAnnotation" not in s:
-            tk.messagebox.showwarning("Enter Work Mode", "You do not appear to be in work mode\nPlease Enter Work Mode Now.")
+            tk.messagebox.showwarning("Could not find DataAnnotation", "You do not appear to have the DataAnnotation Window in the foreground.\nUnable to check Work Mode and Deadlines.")
         if "Report Time" in s:
             tk.messagebox.showwarning("Enter Work Mode", "You appear to be on DAT's main screen. Please remember to press 'Enter Work Mode' after selecting a project.")
         elif "Enter Work Mode" in s:
-            tk.messagebox.showwarning("Could not find DataAnnotation", "You do not appear to have the DataAnnotation Window in the foreground.\nUnable to check Work Mode and Deadlines.")
+            tk.messagebox.showwarning("Enter Work Mode", "You do not appear to be in work mode\nPlease Enter Work Mode Now.")
 
-        print(s)
+
+        #print(s)
         mat=r.match(s)
         if mat:
-            h,m=mat.groups()
+            d,h,m=mat.groups()
+            if not d:
+                d=0
             if not h:
                 h=0
             if not m:
                 m=0
-            self.doom_time=time.time()+int(h)*3600+int(m)*60
+            self.doom_time=time.time()+(int(d)*24+int(h))*3600+int(m)*60
 
     def do_copy(self):
         self.menu_showing=False
@@ -797,6 +844,10 @@ class TimeTrackerApp(tk.Tk):
             self.doom_label.config(text="00:00:00")
         self.doom_label.config(fg=fg)
         idle_duration=get_idle_duration()
+
+        MAX_LEN = 40
+        title = (title[:(MAX_LEN-3)] + '...') if len(title) > MAX_LEN else title
+        #title = title[:MAX_LEN]
 
         if LOG_TIME:
             if self.last_hhmm != hhmm:
