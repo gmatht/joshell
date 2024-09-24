@@ -31,7 +31,7 @@ Specifically for Data Annotation Tech.
 
 Created by: John McCabe-Dansted (and code snippets from StackOverflow)
 License: CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/
-Version: 0.6
+Version: 0.7.1
 
 If you want to work for DAT you can use my referral code:
 2ZbHGEA
@@ -80,7 +80,7 @@ RECORD_SYMBOL="\u23FA" # Unicode for record symbol
 ### BEGIN IMPORTS AND COMPATIBILITY CODE ###
 
 import os, sys, re, shutil
-from tkinter import Tk;
+from tkinter import Tk
 
 def close_log():
     if LOG_TIME:
@@ -121,7 +121,7 @@ else:
         #the user is using now, maybe it is their default terminal.
         #Failing that we try a bunch of random terminals that might be
         #available (Including a number of ones popular on MacOS although
-        #we do not suppport MacOS yet). The first one found will be used.
+        #we do not support MacOS yet). The first one found will be used.
         #If we do not find a terminal the user has, we just use bash. This
         #doesn't allow us to pop up a new window. However it is an OK
         #workaround for things like WSL that may not have an native terminal.
@@ -311,7 +311,9 @@ if os.name=='nt':
 
     def topmost():
         root.attributes("-topmost", True)
-        recover_old_process(0x003)
+        handle = root.frame()
+        user32.SetWindowPos(handle, 0, 0, 0, 110, 110, 0x003)
+        #recover_old_process(0x003)
 
     def unfocus(tk):
         global last_hwnd
@@ -566,7 +568,7 @@ def copy_all():
     if os.name!='nt':
         #pynput should work in linux, but it doesn't seem to
         #you may have to play a bit with this to get it to work with your window manager.
-        if os.system("sleep 0.1 && xdotool key ctrl+a && sleep 0.1 && xdotool key ctrl+c")==0:
+        if os.system("sleep 0.1 && xdotool key ctrl+a && sleep 1.1 && xdotool key ctrl+c")==0:
             return
     print("d2")
     kc=Controller()
@@ -586,7 +588,7 @@ def copy_all():
     r(Key.ctrl_l)
     s()
 
-class TimeTrackerApp(tk.Tk):
+class TimeTrackerApp(tk.Toplevel):
     def __init__(self, master):
         self.master = master
         self.master.title(GUI_TITLE)
@@ -645,6 +647,8 @@ class TimeTrackerApp(tk.Tk):
 
         self.master.after(1, lambda: store_fg(bad=True)) #store_fg(bad=True)
         self.master.after(10, lambda: unfocus(self))
+
+
 
     def do_quit(self):
         close_log()
@@ -730,7 +734,7 @@ class TimeTrackerApp(tk.Tk):
 
     def do_doom(self):
         self.menu_showing=False
-        r=re.compile(r".*\nExpires in: (?:(\d+) days? )?(?:(\d+) hours?)? ?(?:(\d+) minutes)?\n[$]\d.*",re.MULTILINE|re.DOTALL)
+        r=re.compile(r".*\nExpires in:\s+(?:(\d+) days? )?(?:(\d+) hours?)? ?(?:(\d+) minutes)?\n[$]\d.*",re.MULTILINE|re.DOTALL)
         #print("D1")
         unfocus(self)
         copy_all()
@@ -738,7 +742,7 @@ class TimeTrackerApp(tk.Tk):
 
         if "DataAnnotation" not in s:
             tk.messagebox.showwarning("Could not find DataAnnotation", "You do not appear to have the DataAnnotation Window in the foreground.\nUnable to check Work Mode and Deadlines.")
-        if "Report Time" in s:
+        elif "Report Time" in s:
             tk.messagebox.showwarning("Enter Work Mode", "You appear to be on DAT's main screen. Please remember to press 'Enter Work Mode' after selecting a project.")
         elif "Enter Work Mode" in s:
             tk.messagebox.showwarning("Enter Work Mode", "You do not appear to be in work mode\nPlease Enter Work Mode Now.")
