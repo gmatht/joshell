@@ -31,11 +31,12 @@ Specifically for Data Annotation Tech.
 
 Created by: John McCabe-Dansted (and code snippets from StackOverflow)
 License: CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/
-Version: 0.7.1
+dleVersion: 0.7.2
 
 If you want to work for DAT you can use my referral code:
 2ZbHGEA
 
+New in 0.8: Support Wayland? Switch to DataAnnotation Window.
 New in 0.7: Move old GUI to 0,0 if started again
 New in 0.6: DAT_EXTENSIONS (Enter Work Time) and LOG_TIME
 New in 0.5: UI Enhancements, Doom Clock supports <1hr too.
@@ -79,13 +80,33 @@ RECORD_SYMBOL="\u23FA" # Unicode for record symbol
 
 ### BEGIN IMPORTS AND COMPATIBILITY CODE ###
 
+#    print(x.title)
 import os, sys, re, shutil
-from tkinter import Tk
+from datetime import datetime
+
+import subprocess, os, platform
+
+# See: https://stackoverflow.com/questions/434597/open-document-with-default-os-application-in-python-both-in-windows-and-mac-os
+def ui_open(filepath):
+    if platform.system() == 'Darwin':       # macOS
+        subprocess.call(('open', filepath))
+    elif platform.system() == 'Windows':    # Windows
+        os.startfile(filepath)
+    else:                                   # linux variants
+        subprocess.call(('xdg-open', filepath))
 
 def close_log():
     if LOG_TIME:
         log_file.close()
         os.system("gzip " + log_fname)
+if LOG_TIME:
+    LOG_PATH = 'log'
+    if not os.path.exists(LOG_PATH):
+        os.makedirs(LOG_PATH)
+    timestamp=datetime.now().strftime("%Y%H%M%S")
+    log_fname=os.path.join('log', f'dtimer_{timestamp}.tsv')
+    log_file=open(log_fname, "a", encoding="utf-8")
+
 
 def restart():
     close_log()
@@ -144,9 +165,8 @@ else:
 if os.name != 'nt':
     try:
         import tkinter as tk
-        import pynput
     except:
-        xterm("sudo apt install python3-tk python3-pynput", "DTimer needs tkinter and pynput to run.")
+        xterm("sudo apt update; sudo apt install python3-tk", "DTimer needs tkinter to run.")
 try:
 
     import tkinter as tk
@@ -155,18 +175,22 @@ try:
     from datetime import datetime
     from tkinter.constants import VERTICAL, LEFT, BOTH, RIGHT, NW, Y,FALSE, TRUE
 
+    import pyautogui
+    if os.name=='nt':
+        import pygetwindow as gw
+
     ### For Doom Clock ###
-    #import pyautogui -> Doesn't work
-    import time, ctypes, tktimepicker
+    import time, ctypes
     from tktimepicker import AnalogPicker, constants
 
-    from pynput.keyboard import Key, Controller
     from time import sleep
 
 except ImportError as e:
-    pips='datetime tktimepicker pynput collection'
+    pips='datetime tktimepicker pyautogui collection'
     if os.name=='nt':
-        pips='pynput tkinter pynput ' + pips
+        pips='tkinter pygetwindow ' + pips
+    else:
+        pips='idle-time ' + pips
     #else:
     #    pips='contextlib ' + pips
     #pip has a stupid default many packages need an alternative timeout. None of the packages we will install, but lets be safe.
@@ -185,13 +209,10 @@ except ImportError as e:
         elif shutil.which('pip3'): pip_cmd="pip3"
         elif pos2 >= 0 and os.path.exists(pip2): pip_cmd=pip2
         elif os.path.exists(pip1): pip_cmd=pip1
-        #elif shutil.which('conda'):
-        #    pip_cmd="conda install " + pips
-        #elif os.path.exists(guess_conda_path):
-        #    pip_cmd="{guess_conda_path} install" + pips
         else:
             if os.name!='nt' and shutil.which('apt'):
-                pip_cmd="sudo add-apt-repository universe && sudo apt-get update && sudo apt-get install python3-pip"
+                #PIP insists on building PIL from source, so we need libjpeg-dev. I guess we don't need python3-pil?
+                pip_cmd="sudo add-apt-repository universe ; sudo apt-get update && sudo apt-get install python3-pip python3-pil libjpeg-dev && sudo apt-get install python3-venv"
                 msg+="\nPress Enter to install pip now, or close the window to quit."
                 xterm(pip_cmd, msg)
                 continue
@@ -204,7 +225,6 @@ except ImportError as e:
     if os.name != 'nt':
         if os.system("python3 -m venv ~/.virtualenvs/dtimer.venv")==0:
             pip_cmd = "~/.virtualenvs/dtimer.venv/bin/pip"
-
 
     msg +=  f" Press Enter to install now({pip_cmd}), or close the window to quit."
 
@@ -253,77 +273,41 @@ def exec_cmd(cmd_string):
     r.close()
     return result_string
 
+SCALE_FACTOR=1
+
 ###### Get Window Title ################
 if os.name=='nt':
     from ctypes import wintypes, windll, create_unicode_buffer
-    def getForegroundWindowTitle():
-        hWnd = windll.user32.GetForegroundWindow()
-        length = windll.user32.GetWindowTextLengthW(hWnd)
-        buf = create_unicode_buffer(length + 1)
-        windll.user32.GetWindowTextW(hWnd, buf, length + 1)
-        return buf.value
-
     user32 = windll.user32
-    last_hwnd=user32.GetForegroundWindow(None)
+
+    def getForegroundWindowTitle():
+        return gw.getActiveWindowTitle()
+
+    SCALE_FACTOR = ctypes.windll.shcore.GetScaleFactorForDevice(0) / 100
     bad_hwnd=0
     def store_fg(bad=False):
         global last_hwnd, bad_hwnd
         if bad:
-            bad_hwnd=user32.GetForegroundWindow(None)
+            bad_hwnd=gw.getActiveWindow()
         else:
-            hwnd = user32.GetForegroundWindow(None)
+            hwnd = gw.getActiveWindow()
             if bad_hwnd!=hwnd:
-                last_hwnd=user32.GetForegroundWindow(None)
+                last_hwnd=gw.getActiveWindow()
 
-    def recover_old_process(opts):
-        #See: https://gist.github.com/jerblack/2b294916bd46eac13da7d8da48fcf4ab
-        import ctypes
-        user32 = ctypes.windll.user32
-
-        # get screen resolution of primary monitor
-        #res = (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))
-        # res is (2293, 960) for 3440x1440 display at 150% scaling
-        #user32.SetProcessDPIAware()
-        #res = (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))
-        # res is now (3440, 1440) for 3440x1440 display at 150% scaling
-
-        # get handle for Notepad window
-        # non-zero value for handle should mean it found a window that matches
-        #handle = user32.FindWindowW('Time Tracker', None)
-        handle = user32.FindWindowW(None, GUI_TITLE)
-        # or
-        #handle = user32.FindWindowW(None, u'Untitled - Notepad')
-
-        # meaning of 2nd parameter defined here
-        # https://msdn.microsoft.com/en-us/library/windows/desktop/ms633548(v=vs.85).aspx
-        # minimize window using handle
-        #user32.ShowWindow(handle, 6)
-        # maximize window using handle
-        #user32.ShowWindow(handle, 9)
-
-        # move window using handle
-        # MoveWindow(handle, x, y, height, width, repaint(bool))
-        #user32.MoveWindow(handle, 100, 100, 400, 400, True)
-        #print(handle)
-        user32.SetWindowPos(handle, 0, 0, 0, 110, 110, opts)
-
-    recover_old_process(0x001)
 
     def topmost():
         root.attributes("-topmost", True)
         handle = root.frame()
-        user32.SetWindowPos(handle, 0, 0, 0, 110, 110, 0x003)
+        user32.SetWindowPos(handle, -1, 0, 0, 110, 110, 0x003)
         #recover_old_process(0x003)
 
     def unfocus(tk):
         global last_hwnd
-        user32.SetForegroundWindow(last_hwnd)
+        last_hwnd.activate()
         #Windows tends to forget this is meant to be above Taskbar
         #Lets remind windows occasionally
         topmost()
         root.after(10, topmost())
-        #root.after(100, topmost())
-        #root.after(200, topmost())
 else:
 
     def unfocus(tk):
@@ -442,48 +426,62 @@ if os.name == 'nt':
         windll.user32.GetLastInputInfo(byref(lastInputInfo))
         millis = windll.kernel32.GetTickCount() - lastInputInfo.dwTime
         return millis / 1000.0
+
+    #Window sometimes gets lost on windows, so move them to the top
+    move_y=0
+    for w in gw.getWindowsWithTitle(GUI_TITLE):
+        w.moveTo(0, move_y)
+        move_y+=40*SCALE_FACTOR
+
+
+
 else:
-
-    class XScreenSaverInfo( ctypes.Structure):
-        """ typedef struct { ... } XScreenSaverInfo; """
-        _fields_ = [('window',      ctypes.c_ulong), # screen saver window
-                    ('state',       ctypes.c_int),   # off,on,disabled
-                    ('kind',        ctypes.c_int),   # blanked,internal,external
-                    ('since',       ctypes.c_ulong), # milliseconds
-                    ('idle',        ctypes.c_ulong), # milliseconds
-                    ('event_mask',  ctypes.c_ulong)] # events
-
     try:
-        xlib = ctypes.cdll.LoadLibrary( 'libX11.so')
+        from idle_time import IdleMonitor
+
+        monitor = IdleMonitor.get_monitor()
+        monitor.get_idle_time()
+        def get_idle_duration():
+            return monitor.get_idle_time()
+
     except:
-        xlib = ctypes.cdll.LoadLibrary( 'libX11.so.6')
-    xlib.XOpenDisplay.argtypes = [ctypes.c_char_p]
-    xlib.XOpenDisplay.restype = ctypes.c_void_p  # Actually, it's a Display pointer, but since the Display structure definition is not known (nor do we care about it), make it a void pointer
+        class XScreenSaverInfo( ctypes.Structure):
+            """ typedef struct { ... } XScreenSaverInfo; """
+            _fields_ = [('window',      ctypes.c_ulong), # screen saver window
+                        ('state',       ctypes.c_int),   # off,on,disabled
+                        ('kind',        ctypes.c_int),   # blanked,internal,external
+                        ('since',       ctypes.c_ulong), # milliseconds
+                        ('idle',        ctypes.c_ulong), # milliseconds
+                        ('event_mask',  ctypes.c_ulong)] # events
 
-    xlib.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
-    xlib.XDefaultRootWindow.restype = ctypes.c_uint32
+        try:
+            xlib = ctypes.cdll.LoadLibrary( 'libX11.so')
+        except:
+            xlib = ctypes.cdll.LoadLibrary( 'libX11.so.6')
+        xlib.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        xlib.XOpenDisplay.restype = ctypes.c_void_p  # Actually, it's a Display pointer, but since the Display structure definition is not known (nor do we care about it), make it a void pointer
 
-    xss = ctypes.cdll.LoadLibrary( 'libXss.so.1')
-    xss.XScreenSaverQueryInfo.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(XScreenSaverInfo)]
-    xss.XScreenSaverQueryInfo.restype = ctypes.c_int
+        xlib.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+        xlib.XDefaultRootWindow.restype = ctypes.c_uint32
 
-    DISPLAY=os.environ['DISPLAY']
-    xdpy = xlib.XOpenDisplay(None)
-    xroot = xlib.XDefaultRootWindow( xdpy)
-    xss.XScreenSaverAllocInfo.restype = ctypes.POINTER(XScreenSaverInfo)
-    xss_info = xss.XScreenSaverAllocInfo()
-    def get_idle_duration():
-        global xss, xroot, xss_info
-        xss.XScreenSaverQueryInfo( xdpy, xroot, xss_info)
-        millis = xss_info.contents.idle
-        #millis = int(exec_cmd("xprintidle"))
-        return millis / 1000.0
+        xss = ctypes.cdll.LoadLibrary( 'libXss.so.1')
+        xss.XScreenSaverQueryInfo.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(XScreenSaverInfo)]
+        xss.XScreenSaverQueryInfo.restype = ctypes.c_int
 
-
+        DISPLAY=os.environ['DISPLAY']
+        xdpy = xlib.XOpenDisplay(None)
+        xroot = xlib.XDefaultRootWindow( xdpy)
+        xss.XScreenSaverAllocInfo.restype = ctypes.POINTER(XScreenSaverInfo)
+        xss_info = xss.XScreenSaverAllocInfo()
+        def get_idle_duration():
+            global xss, xroot, xss_info
+            xss.XScreenSaverQueryInfo( xdpy, xroot, xss_info)
+            millis = xss_info.contents.idle
+            #millis = int(exec_cmd("xprintidle"))
+            return millis / 1000.0
 ########### END IDLE TIME ################
 
 ### END IMPORTS AND COMPATIBILITY CODE ###
-
 
 ### GUI CODE ###
 
@@ -531,62 +529,17 @@ class VerticalScrolledFrame(ttk.Frame):
                 canvas.itemconfigure(interior_id, width=canvas.winfo_width())
         canvas.bind('<Configure>', _configure_canvas)
 
-if LOG_TIME:
-    LOG_PATH = 'log'
-    if not os.path.exists(LOG_PATH):
-        os.makedirs(LOG_PATH)
 ### My Code ###
-    timestamp=datetime.now().strftime("%Y%H%M%S")
-    log_fname=os.path.join('log', f'dtimer_{timestamp}.tsv')
-    log_file=open(log_fname, "a", encoding="utf-8")
-
-def init_pos():
-    #root = tk.Tk() # create a Tk root window
-    t=root
-    w = 138 #t.winfo_width() # width for the Tk root
-    h = 42 # t.winfo_width() # height for the Tk root
-    print(w,':',h)
-
-    # get screen width and height
-    ws = t.winfo_screenwidth() # width of the screen
-    hs = t.winfo_screenheight() # height of the screen
-
-    # calculate x and y coordinates for the Tk root window
-    x = (ws-2)*2/3 -20 # - 100
-    y = hs - h -2 # - 100
-
-    #x=0
-    #y=0
-
-    # set the dimensions of the screen
-    # and where it is placed
-    root.geometry('%dx%d+%d+%d' % (w, h, x, y))
-
-    #root.mainloop() # starts the mainloop
-
+#def init_pos():
 def copy_all():
-    if os.name!='nt':
-        #pynput should work in linux, but it doesn't seem to
-        #you may have to play a bit with this to get it to work with your window manager.
-        if os.system("sleep 0.1 && xdotool key ctrl+a && sleep 1.1 && xdotool key ctrl+c")==0:
-            return
-    print("d2")
-    kc=Controller()
-    def s(): sleep(0.1)
-    def p(k):
-        print(k)
-        s()
-        kc.press(k)
-    def r(k):
-        s()
-        kc.release(k)
-    p(Key.ctrl_l)
-    p('a')
-    r('a')
-    p('c')
-    r('c')
-    r(Key.ctrl_l)
-    s()
+#    if os.name!='nt':
+#        #pynput should work in linux, but it doesn't seem to
+#        #you may have to play a bit with this to get it to work with your window manager.
+#        if os.system("sleep 0.1 && xdotool key ctrl+a && sleep 1.1 && xdotool key ctrl+c")==0:
+#            return
+    with pyautogui.hold('ctrl'):
+        pyautogui.press('a')
+        pyautogui.press('c')
 
 class TimeTrackerApp(tk.Toplevel):
     def __init__(self, master):
@@ -603,21 +556,24 @@ class TimeTrackerApp(tk.Toplevel):
         self.doom_time = 0
         self.elapsed_time = 0
 
+        #scale_factor=2
+
         ft = font.Font(family='Arial', size=16)
         self.button = tk.Button(master, text=RECORD_SYMBOL, font=ft, command=self.toggle_recording)
-        self.button.pack(side=RIGHT)
+        self.button.place(x=88*SCALE_FACTOR,y=0)
 
         ft = font.Font(family='Arial', size=16)
         self.time_label = tk.Label(master, text="00:00:00", font=ft)
-        self.time_label.pack(padx=1,pady=0,side=tk.TOP)
+        self.time_label.place(x=0*SCALE_FACTOR,y=0)
+        #self.master.geometry(f"{138*scale_factor}x{42*scale_factor}")
 
         tl_h=self.time_label.winfo_height()
         ft = font.Font(family='Arial', size=9)
         self.doom_label = tk.Label(master, text="00:00:00", font=ft)
-        self.doom_label.pack(padx=1,pady=0,side=tk.LEFT)
-        self.doom_label.place(x=0,y=24)
+        #self.doom_label.pack(padx=1,pady=0,side=tk.LEFT)
+        self.doom_label.place(x=0,y=22*SCALE_FACTOR)
         self.wall_clock = tk.Label(master, text="00:00", font=ft)
-        self.wall_clock.place(x=53,y=24)
+        self.wall_clock.place(x=52*SCALE_FACTOR,y=22*SCALE_FACTOR)
 
         self.title_times = defaultdict(float)
         self.pause_times = defaultdict(float)
@@ -627,10 +583,26 @@ class TimeTrackerApp(tk.Toplevel):
         self.master.bind("<B1-Motion>", self.do_move)
         self.master.bind("<Button-3>", self.do_popup)
 
-        init_pos()
+        t=root
+        w = 133*SCALE_FACTOR #t.winfo_width() # width for the Tk root
+        h = 40*SCALE_FACTOR # t.winfo_width() # height for the Tk root
+        print(w,':',h)
+
+        # get screen width and height
+        ws = t.winfo_screenwidth() # width of the screen
+        hs = t.winfo_screenheight() # height of the screen
+
+        # calculate x and y coordinates for the Tk root window
+        x = (ws-2)*7/10 # - 100
+        y = hs - h - 4 * SCALE_FACTOR # - 100
+
+        # set the dimensions of this timer window
+        # and where it is placed
+        root.geometry('%dx%d+%d+%d' % (w, h, x, y))
 
         m = Menu(root, tearoff=0)
         m.add_command(label="Copy", command=self.do_copy)
+        m.add_command(label="View Log", command=self.view_log)
         m.add_command(label="Fix Time", command=self.fix_time)
         if DAT_EXTENTIONS:
             m.add_command(label="Doom ^A^C", command=self.do_doom)
@@ -645,14 +617,20 @@ class TimeTrackerApp(tk.Toplevel):
         self.last_hhmm=""
         self.update_time()
 
-        self.master.after(1, lambda: store_fg(bad=True)) #store_fg(bad=True)
+        self.master.after(1, lambda: store_fg(bad=True))
         self.master.after(10, lambda: unfocus(self))
 
+        root.geometry('%dx%d+%d+%d' % (w, h, x, y))
 
 
     def do_quit(self):
         close_log()
         self.master.destroy()
+
+    def view_log(self):
+        self.menu_showing=False
+        log_file.flush()
+        ui_open(log_fname)
 
     def do_about(self):
         self.menu_showing=False
@@ -708,15 +686,13 @@ class TimeTrackerApp(tk.Toplevel):
              self.category_mins.append(m)
              l=Checkbutton(times_frame, text=f"{prefix} {key} ({m:.2f})", variable=self.category_values[-1], command=lambda: self.fix_time_recalc(), anchor='w',)
              col=default
-             #l.pack(anchor=tk.W)
              l.grid(column=col, row=col_sizes[col], sticky=tk.W,pady=0, padx=0)
              col_sizes[col]+=1
 
         self.category_values = []
         self.category_mins = []
         for k, v in sorted(self.title_times.items(), key=lambda item: -item[1]): add(k,v,1,RECORD_SYMBOL)
-        for k, v in sorted(self.pause_times.items(), key=lambda item: -item[1]): add(k,v,0,RECORD_SYMBOL)
-        #for k, v in self.pause_times.items().sort(key=lambda x: -x[1]): add(k,v,0,PAUSE_SYMBOL )
+        for k, v in sorted(self.pause_times.items(), key=lambda item: -item[1]): add(k,v,0,PAUSE_SYMBOL)
 
         self.fix_time_label=tk.Label(top, text="")
         self.fix_HHMM_label=tk.Label(times_frame, text="")
@@ -734,10 +710,20 @@ class TimeTrackerApp(tk.Toplevel):
 
     def do_doom(self):
         self.menu_showing=False
-        r=re.compile(r".*\nExpires in:\s+(?:(\d+) days? )?(?:(\d+) hours?)? ?(?:(\d+) minutes)?\n[$]\d.*",re.MULTILINE|re.DOTALL)
-        #print("D1")
+        global log_file
+        r=re.compile(r".*\nExpires in:[\s\n]+(?:(\d+) days? )?(?:(\d+) hours?)? ?(?:(\d+) minutes)?\n[$]\d.*",re.MULTILINE|re.DOTALL)
         unfocus(self)
+
+        title=getForegroundWindowTitle()
+        if not title.startswith("DataAnnotation"):
+            for x in pyautogui.getAllWindows():  #TODO: Fix on Linux
+                if x.title.startswith("DataAnnotation"):
+                    x.activate()
+                    time.sleep(0.01)
+                    break
+
         copy_all()
+        time.sleep(0.01)
         s=self.master.clipboard_get()
 
         if "DataAnnotation" not in s:
@@ -759,6 +745,24 @@ class TimeTrackerApp(tk.Toplevel):
             if not m:
                 m=0
             self.doom_time=time.time()+(int(d)*24+int(h))*3600+int(m)*60
+            if LOG_TIME:
+                log_file.write("D\t"+str(self.doom_time)+"\n")
+
+
+        if LOG_TIME:
+            r=re.compile(r".*Projects\r?\n([^\n\r]*)",re.MULTILINE|re.DOTALL)
+            #r=re.compile(r"Projects\r?\n(.*)",re.MULTILINE)
+            mat=r.match(s)
+            if mat:
+                log_file.write("N\t"+mat.group(1)+"\n")
+
+            #r=re.compile(r"Prompt ID: (.*) .Make a note of the ID",re.MULTILINE|re.DOTALL)
+            #r=re.compile(r"[:] (.*) .Make a",re.MULTILINE|re.DOTALL)
+            r=re.compile(r".*Prompt ID: (.*) .Make a",re.MULTILINE|re.DOTALL)
+            mat=r.match(s)
+            if mat:
+                log_file.write("I\t"+mat.group(1)+"\n")
+
 
     def do_copy(self):
         self.menu_showing=False
@@ -779,7 +783,6 @@ class TimeTrackerApp(tk.Toplevel):
             m.tk_popup(event.x_root, event.y_root)
         finally:
             m.grab_release()
-        #unfocus(self)
 
     def start_move(self, event):
         store_fg(bad=True)
@@ -829,8 +832,8 @@ class TimeTrackerApp(tk.Toplevel):
         #Windows tends to forget this is meant to be above Taskbar
         #Lets remind windows occasionally
         if not self.menu_showing:
-            topmost()
-            #root.attributes("-topmost", True)
+            if os.name == 'nt':
+                topmost()
         store_fg()
 
         ctime=dt.timestamp()
@@ -854,12 +857,11 @@ class TimeTrackerApp(tk.Toplevel):
 
         MAX_LEN = 40
         title = (title[:(MAX_LEN-3)] + '...') if len(title) > MAX_LEN else title
-        #title = title[:MAX_LEN]
 
         if LOG_TIME:
             if self.last_hhmm != hhmm:
                 self.last_hhmm=hhmm
-                log_file.write("T   "+hhmm+"\n")
+                log_file.write("T\t"+hhmm+"\n")
             if self.recording:
                 status="R"
             else:
