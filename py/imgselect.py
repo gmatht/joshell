@@ -16,6 +16,7 @@ view_height=1000
 GEOM="1977x1020" # Main Window
 DEST='~/good_pics'
 SRC='~/Downloads/*.jpg'
+SRC='/mnt/z/BLOB/FromUSB/32GBmini/3D/DCIM/104_FUJI/*.JPG'
 #END CONFIG
 
 
@@ -71,7 +72,7 @@ root = Tk()
 root.title("Image Viewer")
 root.geometry("1977x1020")
 
-list_images = glob.glob('/mnt/c/Users/s_pam/Downloads/*.jpg')
+list_images = glob.glob(SRC)
 img_cache = [None]*len(list_images)
 
 lock = threading.Lock()
