@@ -1,291 +1,431 @@
 import os
 import hashlib
 import shutil
-import logging
-import argparse
-from typing import Optional, List
-from pathlib import Path
-from PIL import ImageGrab, Image
+from PIL import ImageGrab, Image, ImageTk, ImageDraw, ImageFont
 import time
 import filetype
 import PIL
 import ctypes
+import tkinter as tk
+from tkinter import Canvas
+import math
 
-# Configuration constants
 OUTPUT_DIR = "F:\\pics"
 
 DEBUG = False
-SLEEP_DURATION_SHORT = 0.1
-SLEEP_DURATION_LONG = 2
-INACTIVITY_THRESHOLD = 10  # seconds
-
+# Constants for timer intervals
+TIMER_INTERVAL_SHORT = 100  # milliseconds
+TIMER_INTERVAL_LONG = 2000  # milliseconds
 MAX_CACHE_FILES = 99 #number of files to check in the cache
+INACTIVITY_THRESHOLD = 60  # seconds
 BRAVE_CACHE_PATH = r"%LocalAppData%\BraveSoftware\Brave-Browser\User Data\Default\Cache\Cache_Data"
 BRAVE_CACHE_PATH = os.path.expandvars(BRAVE_CACHE_PATH)
 HASH_FILE = os.path.join(OUTPUT_DIR, "sha256.txt")
 
-# Global cache for image hashes
-cached_hashes = {}
+# Animation constants
+ANIMATION_DURATION = 0.2  # seconds
+ANIMATION_FPS = 60
+FLOPPY_ICON_SIZE = 256
+FLOPPY_ICON_POSITION = (50, 50)  # Bottom-right corner offset
 
-# Setup logging
-def setup_logging(debug: bool = False) -> None:
-    """Configure logging with appropriate level."""
-    level = logging.DEBUG if debug else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler('clipboard_monitor.log')
-        ]
-    )
+# Ensure paths exist
+if not os.path.exists(BRAVE_CACHE_PATH):
+    print(f"Error: {BRAVE_CACHE_PATH} does not exist")
+    exit(1)
 
-def validate_paths() -> None:
-    """Validate that required paths exist."""
-    if not os.path.exists(BRAVE_CACHE_PATH):
-        logging.error(f"Brave cache path does not exist: {BRAVE_CACHE_PATH}")
-        exit(1)
+if not os.path.exists(OUTPUT_DIR):
+    print(f"Error: {OUTPUT_DIR} does not exist")
+    exit(1)
 
-    if not os.path.exists(OUTPUT_DIR):
-        logging.error(f"Output directory does not exist: {OUTPUT_DIR}")
-        exit(1)
-
-def get_clipboard_sequence_number() -> int:
-    """Get the current clipboard sequence number."""
-    return ctypes.windll.user32.GetClipboardSequenceNumber()
-
-def get_clipboard_image() -> Optional[Image.Image]:
-    """
-    Get image from clipboard if available.
+def create_floppy_icon(size=256):
+    """Create a floppy disk icon using Unicode symbol."""
+    icon = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(icon)
     
-    Returns:
-        PIL Image object if clipboard contains an image, None otherwise.
-    """
-    try:
-        image = ImageGrab.grabclipboard()
-        if image:
-            logging.debug(f"Clipboard contains an image of type {type(image)}")
-            return image
-        else:
-            logging.debug("No image found in clipboard")
-            return None
-    except Exception as e:
-        logging.error(f"Error accessing clipboard: {e}")
-        return None
-
-def get_last_files_in_cache(n: int = MAX_CACHE_FILES) -> List[str]:
-    """
-    Get the most recently modified files from Brave cache.
-    
-    Args:
-        n: Maximum number of files to return
-        
-    Returns:
-        List of filenames sorted by modification time (newest first)
-    """
-    try:
-        files = sorted(
-            os.listdir(BRAVE_CACHE_PATH), 
-            key=lambda x: os.path.getmtime(os.path.join(BRAVE_CACHE_PATH, x)), 
-            reverse=True
-        )
-        return files[:n]
-    except OSError as e:
-        logging.error(f"Error reading cache directory: {e}")
-        return []
-
-def calculate_sha256(file_path: str) -> str:
-    """
-    Calculate SHA256 hash of a file.
-    
-    Args:
-        file_path: Path to the file
-        
-    Returns:
-        SHA256 hash as hexadecimal string
-    """
-    try:
-        with open(file_path, "rb") as f:
-            file_hash = hashlib.sha256()
-            while chunk := f.read(8192):
-                file_hash.update(chunk)
-        result = file_hash.hexdigest()
-        logging.debug(f"Calculated hash for {file_path}: {result}")
-        return result
-    except Exception as e:
-        logging.error(f"Error calculating hash for {file_path}: {e}")
-        return ""
-
-def calculate_image_hash(file_path: str) -> Optional[str]:
-    """
-    Calculate hash of image data with caching.
-    
-    Args:
-        file_path: Path to the image file
-        
-    Returns:
-        SHA256 hash of image data or None if error
-    """
-    if file_path in cached_hashes:
-        return cached_hashes[file_path]
+    floppy_symbol = "💾"  # U+1F4BE
     
     try:
-        with Image.open(file_path) as image:
-            hash_value = hashlib.sha256(image.tobytes()).hexdigest()
-            cached_hashes[file_path] = hash_value
-            return hash_value
-    except Exception as e:
-        logging.debug(f"Error calculating image hash for {file_path}: {e}")
-        return None
-
-def is_hash_duplicate(clipboard_hash: str) -> bool:
-    """
-    Check if hash already exists in the hash file.
-    
-    Args:
-        clipboard_hash: Hash to check for duplicates
+        font_size = int(size * 0.8)
+        font_names = ["seguiemj.ttf", "NotoColorEmoji.ttf", "AppleColorEmoji.ttc", "arial.ttf"]
         
-    Returns:
-        True if hash is a duplicate, False otherwise
-    """
-    try:
-        with open(HASH_FILE, "r") as hash_file:
-            content = hash_file.read()
-            return f"{clipboard_hash} " in content
-    except FileNotFoundError:
-        return False
-    except Exception as e:
-        logging.error(f"Error reading hash file: {e}")
-        return False
-
-def save_image_with_hash(file_path: str, clipboard_hash: str) -> bool:
-    """
-    Save image file to output directory with hash-based filename.
-    
-    Args:
-        file_path: Source file path
-        clipboard_hash: Hash to use for filename and tracking
-        
-    Returns:
-        True if successful, False otherwise
-    """
-    try:
-        kind = filetype.guess(file_path)
-        if not kind:
-            logging.warning(f"Could not determine file type for {file_path}")
-            return False
-            
-        ext = kind.extension
-        new_file_path = os.path.join(OUTPUT_DIR, f"{clipboard_hash}.{ext}")
-        
-        shutil.copyfile(file_path, new_file_path)
-        
-        with open(HASH_FILE, "a") as hash_file:
-            hash_file.write(f"{clipboard_hash} {new_file_path}\n")
-            
-        logging.info(f"Copied {os.path.basename(file_path)} to {new_file_path}")
-        return True
-        
-    except Exception as e:
-        logging.error(f"Error saving image: {e}")
-        return False
-
-def process_clipboard_image(clipboard_image: Image.Image) -> Optional[str]:
-    """
-    Process clipboard image and find matching cache file.
-    
-    Args:
-        clipboard_image: PIL Image from clipboard
-        
-    Returns:
-        Hash of the image if processed successfully, None otherwise
-    """
-    try:
-        clipboard_hash = hashlib.sha256(clipboard_image.tobytes()).hexdigest()
-        logging.debug(f"Clipboard hash: {clipboard_hash}")
-        
-        if is_hash_duplicate(clipboard_hash):
-            logging.debug(f"Hash {clipboard_hash} already exists, skipping")
-            return clipboard_hash
-            
-        last_files = get_last_files_in_cache(MAX_CACHE_FILES)
-        
-        for file_name in last_files:
-            if not file_name.startswith("f_"):
-                continue
-                
-            file_path = os.path.join(BRAVE_CACHE_PATH, file_name)
-            if not os.path.isfile(file_path):
-                continue
-                
-            file_hash = calculate_image_hash(file_path)
-            if file_hash is None:
-                continue
-                
-            logging.debug(f"File hash: {file_hash}")
-            
-            if file_hash == clipboard_hash:
-                logging.debug(f"Found matching file: {file_name}")
-                if save_image_with_hash(file_path, clipboard_hash):
-                    return clipboard_hash
+        font = None
+        for font_name in font_names:
+            try:
+                font = ImageFont.truetype(font_name, font_size)
                 break
-                
-        return clipboard_hash
-        
-    except Exception as e:
-        logging.error(f"Error processing clipboard image: {e}")
-        return None
-
-def main() -> None:
-    """Main monitoring loop."""
-    setup_logging(DEBUG)
-    validate_paths()
-    
-    logging.info("Starting clipboard monitor...")
-    
-    last_clipboard_hash = None  
-    last_clipboard_sequence_number = None
-    last_action_time = time.time()
-
-    try:
-        while True:
-            clipboard_sequence_number = get_clipboard_sequence_number()
-            
-            # Skip if clipboard hasn't changed
-            if clipboard_sequence_number == last_clipboard_sequence_number:
+            except (OSError, IOError):
                 continue
+        
+        if font is None:
+            font = ImageFont.load_default()
+        
+        bbox = draw.textbbox((0, 0), floppy_symbol, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        x = (size - text_width) // 2
+        y = (size - text_height) // 2
+        
+        draw.text((x, y), floppy_symbol, fill=(30, 100, 200, 255), font=font)
+        
+    except Exception:
+        # Fallback: simple blue square
+        margin = size // 8
+        draw.rectangle([margin, margin, size-margin, size-margin], fill=(30, 100, 200, 255))
+        inner_margin = size // 3
+        draw.rectangle([inner_margin, inner_margin, size-inner_margin, size-inner_margin], 
+                      fill=(255, 255, 255, 255))
+    
+    return icon
+
+class SaveAnimationWindow:
+    """Creates an overlay window to show save animation using pure timer events."""
+    
+    def __init__(self, main_root):
+        self.main_root = main_root
+        self.animation_window = None
+        self.canvas = None
+        self.is_animating = False
+        self.animation_timer = None
+        
+    def get_mouse_position(self):
+        """Get current mouse cursor position."""
+        try:
+            from ctypes import wintypes
+            point = wintypes.POINT()
+            ctypes.windll.user32.GetCursorPos(ctypes.byref(point))
+            return (point.x, point.y)
+        except Exception:
+            screen_width = self.main_root.winfo_screenwidth()
+            screen_height = self.main_root.winfo_screenheight()
+            return (screen_width // 2, screen_height // 2)
+
+    def get_monitor_from_mouse(self, mouse_x, mouse_y):
+        """Get monitor information for the monitor containing the mouse cursor."""
+        try:
+            from ctypes import wintypes
+            
+            point = wintypes.POINT(mouse_x, mouse_y)
+            monitor = ctypes.windll.user32.MonitorFromPoint(point, 2)
+            
+            class MONITORINFO(ctypes.Structure):
+                _fields_ = [
+                    ('cbSize', ctypes.c_ulong),
+                    ('rcMonitor', wintypes.RECT),
+                    ('rcWork', wintypes.RECT),
+                    ('dwFlags', ctypes.c_ulong)
+                ]
+            
+            monitor_info = MONITORINFO()
+            monitor_info.cbSize = ctypes.sizeof(MONITORINFO)
+            
+            if ctypes.windll.user32.GetMonitorInfoW(monitor, ctypes.byref(monitor_info)):
+                rect = monitor_info.rcMonitor
+                return {
+                    'x': rect.left,
+                    'y': rect.top,
+                    'width': rect.right - rect.left,
+                    'height': rect.bottom - rect.top
+                }
+        except Exception:
+            pass
+        
+        return {
+            'x': 0,
+            'y': 0,
+            'width': self.main_root.winfo_screenwidth(),
+            'height': self.main_root.winfo_screenheight()
+        }
+
+    def animate_save(self, image):
+        """Animate the image shrinking into a floppy icon."""
+        if self.is_animating:
+            return
+        
+        start_position = self.get_mouse_position()
+        monitor = self.get_monitor_from_mouse(start_position[0], start_position[1])
+        
+        target_position = (monitor['x'] + monitor['width'] - FLOPPY_ICON_POSITION[0] - FLOPPY_ICON_SIZE, 
+                         monitor['y'] + monitor['height'] - FLOPPY_ICON_POSITION[1] - FLOPPY_ICON_SIZE)
+        
+        self._start_animation(image, target_position, start_position, monitor)
+
+    def _start_animation(self, image, target_position, start_position, monitor):
+        """Initialize and start the animation window."""
+        try:
+            self.is_animating = True
+            
+            self.animation_window = tk.Toplevel(self.main_root)
+            self.animation_window.withdraw()
+            self.animation_window.attributes('-topmost', True)
+            self.animation_window.overrideredirect(True)
+            
+            self.animation_window.geometry(f"{monitor['width']}x{monitor['height']}+{monitor['x']}+{monitor['y']}")
+            
+            self.canvas = Canvas(self.animation_window, width=monitor['width'], height=monitor['height'], 
+                               highlightthickness=0, bg='black')
+            self.canvas.pack()
+            
+            # Make transparent
+            self.animation_window.attributes('-transparentcolor', 'black')
+            
+            # Prepare images
+            max_start_size = min(400, image.width, image.height)
+            start_image = image.copy()
+            start_image.thumbnail((max_start_size, max_start_size), Image.Resampling.LANCZOS)
+            
+            floppy_icon = create_floppy_icon(FLOPPY_ICON_SIZE)
+            
+            # Calculate positions relative to monitor
+            start_x = start_position[0] - monitor['x'] - start_image.width // 2
+            start_y = start_position[1] - monitor['y'] - start_image.height // 2
+            
+            target_x = target_position[0] - monitor['x']
+            target_y = target_position[1] - monitor['y']
+            monitor_relative_target = (target_x, target_y)
+            
+            # Show window
+            self.animation_window.deiconify()
+            self.animation_window.lift()
+            
+            # Animation state
+            animation_state = {
+                'frame': 0,
+                'frames': int(ANIMATION_DURATION * ANIMATION_FPS),
+                'start_image': start_image,
+                'floppy_icon': floppy_icon,
+                'start_x': start_x,
+                'start_y': start_y,
+                'target_position': monitor_relative_target,
+                'frame_interval': int(1000 / ANIMATION_FPS)
+            }
+            
+            self._animate_frame(animation_state)
+            
+        except Exception:
+            self._cleanup_animation()
+
+    def _animate_frame(self, state):
+        """Animate a single frame."""
+        try:
+            if not self.is_animating or not self.animation_window:
+                return
                 
-            last_clipboard_sequence_number = clipboard_sequence_number
-            clipboard_image = get_clipboard_image()
+            if state['frame'] >= state['frames']:
+                self.animation_timer = self.main_root.after(300, self._cleanup_animation)
+                return
+            
+            progress = state['frame'] / state['frames']
+            eased_progress = 0.5 * (1 - math.cos(progress * math.pi))
+            
+            # Calculate current size and position
+            current_scale = 1.0 - (0.9 * eased_progress)
+            current_width = max(1, int(state['start_image'].width * current_scale))
+            current_height = max(1, int(state['start_image'].height * current_scale))
+            
+            current_x = int(state['start_x'] + (state['target_position'][0] - state['start_x']) * eased_progress)
+            current_y = int(state['start_y'] + (state['target_position'][1] - state['start_y']) * eased_progress)
+            
+            opacity = max(0.2, 1.0 - eased_progress)
+            
+            self.canvas.delete("all")
+            
+            # Draw shrinking image
+            if current_width > 1 and current_height > 1:
+                resized_image = state['start_image'].resize((current_width, current_height), Image.Resampling.LANCZOS)
+                
+                if resized_image.mode != 'RGBA':
+                    resized_image = resized_image.convert('RGBA')
+                
+                alpha = resized_image.split()[-1]
+                alpha = alpha.point(lambda p: int(p * opacity))
+                resized_image.putalpha(alpha)
+                
+                photo = ImageTk.PhotoImage(resized_image)
+                self.canvas.create_image(current_x, current_y, anchor=tk.NW, image=photo)
+                self.canvas.image = photo
+            
+            # Draw floppy icon
+            floppy_opacity = min(1.0, eased_progress * 2)
+            if floppy_opacity > 0:
+                floppy_with_opacity = state['floppy_icon'].copy()
+                alpha = floppy_with_opacity.split()[-1]
+                alpha = alpha.point(lambda p: int(p * floppy_opacity))
+                floppy_with_opacity.putalpha(alpha)
+                
+                floppy_photo = ImageTk.PhotoImage(floppy_with_opacity)
+                self.canvas.create_image(state['target_position'][0], state['target_position'][1], 
+                                       anchor=tk.NW, image=floppy_photo)
+                self.canvas.floppy_image = floppy_photo
+            
+            state['frame'] += 1
+            self.animation_timer = self.main_root.after(state['frame_interval'], lambda: self._animate_frame(state))
+            
+        except Exception:
+            self._cleanup_animation()
+
+    def _cleanup_animation(self):
+        """Clean up animation resources."""
+        try:
+            if self.animation_timer:
+                self.main_root.after_cancel(self.animation_timer)
+                self.animation_timer = None
+                
+            if self.animation_window:
+                self.animation_window.destroy()
+                self.animation_window = None
+                
+            self.canvas = None
+        except Exception:
+            pass
+        finally:
+            self.is_animating = False
+
+class ClipboardMonitor:
+    """Timer-based clipboard monitor."""
+    
+    def __init__(self, root):
+        self.root = root
+        self.last_clipboard_hash = None
+        self.last_clipboard_sequence_number = None
+        self.last_action_time = time.time()
+        self.timer_id = None
+        self.is_running = False
+        self.save_animator = SaveAnimationWindow(root)
+        self.cached_hashes = {}
+        
+    def get_clipboard_sequence_number(self):
+        return ctypes.windll.user32.GetClipboardSequenceNumber()
+
+    def get_clipboard_image(self):
+        try:
+            return ImageGrab.grabclipboard()
+        except Exception:
+            return None
+
+    def get_last_files_in_cache(self, n=99):
+        try:
+            files = sorted(os.listdir(BRAVE_CACHE_PATH), 
+                         key=lambda x: os.path.getmtime(os.path.join(BRAVE_CACHE_PATH, x)), 
+                         reverse=True)
+            return files[:n]
+        except Exception:
+            return []
+
+    def calculate_image_hash(self, file_path):
+        if file_path in self.cached_hashes:
+            return self.cached_hashes[file_path]
+        try:
+            with Image.open(file_path) as image:
+                hash_val = hashlib.sha256(image.tobytes()).hexdigest()
+                self.cached_hashes[file_path] = hash_val
+                return hash_val
+        except Exception:
+            return None
+
+    def save_image_with_animation(self, file_path, clipboard_hash, clipboard_image):
+        """Save image file and trigger animation."""
+        try:
+            kind = filetype.guess(file_path)
+            if not kind:
+                return False
+                
+            ext = kind.extension
+            new_file_path = os.path.join(OUTPUT_DIR, f"{clipboard_hash}.{ext}")
+            
+            shutil.copyfile(file_path, new_file_path)
+            
+            with open(HASH_FILE, "a") as hash_file:
+                hash_file.write(f"{clipboard_hash} {new_file_path}\n")
+                
+            print(f"Copied {os.path.basename(file_path)} to {new_file_path}")
             
             if clipboard_image:
-                current_hash = process_clipboard_image(clipboard_image)
-                
-                # Skip if same image as before
-                if current_hash == last_clipboard_hash:
-                    continue
-                    
-                last_clipboard_hash = current_hash
-                last_action_time = time.time()
+                self.save_animator.animate_save(clipboard_image)
             
-            # Adaptive sleep based on activity
-            if time.time() - last_action_time > INACTIVITY_THRESHOLD:
-                time.sleep(SLEEP_DURATION_LONG)
-            else:
-                time.sleep(SLEEP_DURATION_SHORT)
+            return True
+            
+        except Exception as e:
+            print(f"Error saving image: {e}")
+            return False
+
+    def check_clipboard(self):
+        """Timer callback to check clipboard."""
+        try:
+            clipboard_sequence_number = self.get_clipboard_sequence_number()
+            
+            if clipboard_sequence_number != self.last_clipboard_sequence_number:
+                self.last_clipboard_sequence_number = clipboard_sequence_number
+                clipboard_image = self.get_clipboard_image()
                 
+                if clipboard_image:
+                    clipboard_hash = hashlib.sha256(clipboard_image.tobytes()).hexdigest()
+                    
+                    if clipboard_hash != self.last_clipboard_hash:
+                        self.last_clipboard_hash = clipboard_hash
+
+                        last_files = self.get_last_files_in_cache(MAX_CACHE_FILES)
+                        for file_name in last_files:
+                            if not file_name.startswith("f_"):
+                                continue
+                            file_path = os.path.join(BRAVE_CACHE_PATH, file_name)
+                            if os.path.isfile(file_path):
+                                file_hash = self.calculate_image_hash(file_path)
+                                if file_hash == clipboard_hash:
+                                    with open(HASH_FILE, "a+") as hash_file:
+                                        hash_file.seek(0)
+                                        if f"{clipboard_hash} " not in hash_file.read():
+                                            if self.save_image_with_animation(file_path, clipboard_hash, clipboard_image):
+                                                self.last_action_time = time.time()
+                                    break
+            
+            # Schedule next check
+            interval = TIMER_INTERVAL_LONG if time.time() - self.last_action_time > INACTIVITY_THRESHOLD else TIMER_INTERVAL_SHORT
+            
+            if self.is_running:
+                self.timer_id = self.root.after(interval, self.check_clipboard)
+                
+        except Exception:
+            if self.is_running:
+                self.timer_id = self.root.after(TIMER_INTERVAL_LONG, self.check_clipboard)
+
+    def start(self):
+        """Start clipboard monitoring."""
+        print("Starting clipboard monitor...")
+        self.is_running = True
+        self.last_action_time = time.time()
+        self.timer_id = self.root.after(TIMER_INTERVAL_SHORT, self.check_clipboard)
+
+    def stop(self):
+        """Stop clipboard monitoring."""
+        print("Stopping clipboard monitor...")
+        self.is_running = False
+        if self.timer_id:
+            self.root.after_cancel(self.timer_id)
+            self.timer_id = None
+        if self.save_animator.is_animating:
+            self.save_animator._cleanup_animation()
+
+def main():
+    root = tk.Tk()
+    root.withdraw()
+    root.title("Clipboard Monitor")
+    
+    monitor = ClipboardMonitor(root)
+    
+    def on_closing():
+        monitor.stop()
+        root.quit()
+        root.destroy()
+    
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+    monitor.start()
+    
+    try:
+        root.mainloop()
     except KeyboardInterrupt:
-        logging.info("Clipboard monitor stopped by user")
-    except Exception as e:
-        logging.error(f"Unexpected error in main loop: {e}")
-        raise
+        print("\nKeyboard interrupt received")
+        monitor.stop()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Monitor clipboard for images and save from browser cache")
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    args = parser.parse_args()
-    
-    if args.debug:
-        DEBUG = True
-        
     main()
