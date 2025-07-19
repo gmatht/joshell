@@ -36,12 +36,19 @@ if not os.path.exists(OUTPUT_DIR):
     print(f"Error: {OUTPUT_DIR} does not exist")
     exit(1)
 
-def create_floppy_icon(size=256):
-    """Create a floppy disk icon using Unicode symbol."""
+def create_target_icon(size=256, img=None, is_duplicate=False):
+    """Create a target icon - floppy for new saves, equals sign for duplicates."""
     icon = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(icon)
     
-    floppy_symbol = "💾"  # U+1F4BE
+    if is_duplicate:
+        # Use equals sign for duplicates
+        symbol = "="
+        color = (0, 0, 0, 255)  # Orange color for duplicates
+    else:
+        # Use floppy disk for new saves
+        symbol = "💾"  # U+1F4BE
+        color = (30, 100, 200, 255)  # Blue color for new saves
     
     try:
         font_size = int(size * 0.8)
@@ -58,19 +65,23 @@ def create_floppy_icon(size=256):
         if font is None:
             font = ImageFont.load_default()
         
-        bbox = draw.textbbox((0, 0), floppy_symbol, font=font)
+        bbox = draw.textbbox((0, 0), symbol, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         
         x = (size - text_width) // 2
-        y = (size - text_height) // 2
-        
-        draw.text((x, y), floppy_symbol, fill=(30, 100, 200, 255), font=font)
+        y = (size - text_height) // 2    
+        if img:
+            # Resize the background image to fit the icon size
+            img = img.resize((size, size), Image.Resampling.LANCZOS)
+            icon.paste(img, (0, 0))
+            
+        draw.text((x, y), symbol, fill=color, font=font)
         
     except Exception:
-        # Fallback: simple blue square
+        # Fallback: colored square
         margin = size // 8
-        draw.rectangle([margin, margin, size-margin, size-margin], fill=(30, 100, 200, 255))
+        draw.rectangle([margin, margin, size-margin, size-margin], fill=color)
         inner_margin = size // 3
         draw.rectangle([inner_margin, inner_margin, size-inner_margin, size-inner_margin], 
                       fill=(255, 255, 255, 255))
@@ -136,8 +147,8 @@ class SaveAnimationWindow:
             'height': self.main_root.winfo_screenheight()
         }
 
-    def animate_save(self, image):
-        """Animate the image shrinking into a floppy icon."""
+    def animate_save(self, image, is_duplicate=False):
+        """Animate the image shrinking into a target icon."""
         if self.is_animating:
             return
         
@@ -147,9 +158,9 @@ class SaveAnimationWindow:
         target_position = (monitor['x'] + monitor['width'] - FLOPPY_ICON_POSITION[0] - FLOPPY_ICON_SIZE, 
                          monitor['y'] + monitor['height'] - FLOPPY_ICON_POSITION[1] - FLOPPY_ICON_SIZE)
         
-        self._start_animation(image, target_position, start_position, monitor)
+        self._start_animation(image, target_position, start_position, monitor, is_duplicate)
 
-    def _start_animation(self, image, target_position, start_position, monitor):
+    def _start_animation(self, image, target_position, start_position, monitor, is_duplicate=False):
         """Initialize and start the animation window."""
         try:
             self.is_animating = True
@@ -173,7 +184,7 @@ class SaveAnimationWindow:
             start_image = image.copy()
             start_image.thumbnail((max_start_size, max_start_size), Image.Resampling.LANCZOS)
             
-            floppy_icon = create_floppy_icon(FLOPPY_ICON_SIZE)
+            target_icon = create_target_icon(FLOPPY_ICON_SIZE, image, is_duplicate)
             
             # Calculate positions relative to monitor
             start_x = start_position[0] - monitor['x'] - start_image.width // 2
@@ -192,7 +203,7 @@ class SaveAnimationWindow:
                 'frame': 0,
                 'frames': int(ANIMATION_DURATION * ANIMATION_FPS),
                 'start_image': start_image,
-                'floppy_icon': floppy_icon,
+                'target_icon': target_icon,
                 'start_x': start_x,
                 'start_y': start_y,
                 'target_position': monitor_relative_target,
@@ -244,18 +255,18 @@ class SaveAnimationWindow:
                 self.canvas.create_image(current_x, current_y, anchor=tk.NW, image=photo)
                 self.canvas.image = photo
             
-            # Draw floppy icon
-            floppy_opacity = min(1.0, eased_progress * 2)
-            if floppy_opacity > 0:
-                floppy_with_opacity = state['floppy_icon'].copy()
-                alpha = floppy_with_opacity.split()[-1]
-                alpha = alpha.point(lambda p: int(p * floppy_opacity))
-                floppy_with_opacity.putalpha(alpha)
+            # Draw target icon
+            target_opacity = min(1.0, eased_progress * 2)
+            if target_opacity > 0:
+                target_with_opacity = state['target_icon'].copy()
+                alpha = target_with_opacity.split()[-1]
+                alpha = alpha.point(lambda p: int(p * target_opacity))
+                target_with_opacity.putalpha(alpha)
                 
-                floppy_photo = ImageTk.PhotoImage(floppy_with_opacity)
+                target_photo = ImageTk.PhotoImage(target_with_opacity)
                 self.canvas.create_image(state['target_position'][0], state['target_position'][1], 
-                                       anchor=tk.NW, image=floppy_photo)
-                self.canvas.floppy_image = floppy_photo
+                                       anchor=tk.NW, image=target_photo)
+                self.canvas.target_image = target_photo
             
             state['frame'] += 1
             self.animation_timer = self.main_root.after(state['frame_interval'], lambda: self._animate_frame(state))
@@ -332,10 +343,18 @@ class ClipboardMonitor:
             if os.path.isfile(file_path):
                 file_hash = self.calculate_image_hash(file_path)
                 if file_hash == clipboard_hash:
+                    # Check if it's a duplicate
                     with open(HASH_FILE, "a+") as hash_file:
                         hash_file.seek(0)
-                        if f"{clipboard_hash} " not in hash_file.read():
-                            self.save_image_with_animation(file_path, clipboard_hash, clipboard_image)
+                        is_duplicate = f"{clipboard_hash} " in hash_file.read()
+                        
+                    if not is_duplicate:
+                        # New image - save and show floppy animation
+                        self.save_image_with_animation(file_path, clipboard_hash, clipboard_image, False)
+                    else:
+                        # Duplicate image - show equals animation without saving
+                        print(f"Duplicate image detected: {clipboard_hash}")
+                        self.save_animator.animate_save(clipboard_image, True)
                     break
 
     def get_clipboard_image(self):
@@ -364,7 +383,7 @@ class ClipboardMonitor:
         except Exception:
             return None
 
-    def save_image_with_animation(self, file_path, clipboard_hash, clipboard_image):
+    def save_image_with_animation(self, file_path, clipboard_hash, clipboard_image, is_duplicate=False):
         """Save image file and trigger animation."""
         try:
             kind = filetype.guess(file_path)
@@ -382,7 +401,7 @@ class ClipboardMonitor:
             print(f"Copied {os.path.basename(file_path)} to {new_file_path}")
             
             if clipboard_image:
-                self.save_animator.animate_save(clipboard_image)
+                self.save_animator.animate_save(clipboard_image, is_duplicate)
             
             return True
             
