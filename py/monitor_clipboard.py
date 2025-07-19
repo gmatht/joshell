@@ -9,15 +9,14 @@ import ctypes
 import tkinter as tk
 from tkinter import Canvas
 import math
+import threading
+
+import win32api, win32gui
 
 OUTPUT_DIR = "F:\\pics"
 
 DEBUG = False
-# Constants for timer intervals
-TIMER_INTERVAL_SHORT = 100  # milliseconds
-TIMER_INTERVAL_LONG = 2000  # milliseconds
 MAX_CACHE_FILES = 99 #number of files to check in the cache
-INACTIVITY_THRESHOLD = 60  # seconds
 BRAVE_CACHE_PATH = r"%LocalAppData%\BraveSoftware\Brave-Browser\User Data\Default\Cache\Cache_Data"
 BRAVE_CACHE_PATH = os.path.expandvars(BRAVE_CACHE_PATH)
 HASH_FILE = os.path.join(OUTPUT_DIR, "sha256.txt")
@@ -282,20 +281,62 @@ class SaveAnimationWindow:
             self.is_animating = False
 
 class ClipboardMonitor:
-    """Timer-based clipboard monitor."""
+    """Event-driven clipboard monitor using win32 clipboard listener."""
     
     def __init__(self, root):
         self.root = root
         self.last_clipboard_hash = None
-        self.last_clipboard_sequence_number = None
-        self.last_action_time = time.time()
-        self.timer_id = None
         self.is_running = False
         self.save_animator = SaveAnimationWindow(root)
         self.cached_hashes = {}
+        self.hwnd = None
+        self.listener_thread = None
         
-    def get_clipboard_sequence_number(self):
-        return ctypes.windll.user32.GetClipboardSequenceNumber()
+    def _create_window(self):
+        """Create a window for listening to clipboard messages."""
+        wc = win32gui.WNDCLASS()
+        wc.lpfnWndProc = self._process_message
+        wc.lpszClassName = 'ClipboardMonitor'
+        wc.hInstance = win32api.GetModuleHandle(None)
+        class_atom = win32gui.RegisterClass(wc)
+        return win32gui.CreateWindow(class_atom, 'ClipboardMonitor', 0, 0, 0, 0, 0, 0, 0, wc.hInstance, None)
+
+    def _process_message(self, hwnd, msg, wparam, lparam):
+        """Process Windows messages, specifically clipboard updates."""
+        WM_CLIPBOARDUPDATE = 0x031D
+        if msg == WM_CLIPBOARDUPDATE:
+            # Schedule clipboard processing in the main thread
+            self.root.after_idle(self._process_clipboard_change)
+        return 0
+
+    def _process_clipboard_change(self):
+        """Process clipboard change in the main thread."""
+        try:
+            clipboard_image = self.get_clipboard_image()
+            if clipboard_image:
+                clipboard_hash = hashlib.sha256(clipboard_image.tobytes()).hexdigest()
+                
+                if clipboard_hash != self.last_clipboard_hash:
+                    self.last_clipboard_hash = clipboard_hash
+                    self._check_and_save_image(clipboard_image, clipboard_hash)
+        except Exception as e:
+            print(f"Error processing clipboard change: {e}")
+
+    def _check_and_save_image(self, clipboard_image, clipboard_hash):
+        """Check cache for matching image and save if found."""
+        last_files = self.get_last_files_in_cache(MAX_CACHE_FILES)
+        for file_name in last_files:
+            if not file_name.startswith("f_"):
+                continue
+            file_path = os.path.join(BRAVE_CACHE_PATH, file_name)
+            if os.path.isfile(file_path):
+                file_hash = self.calculate_image_hash(file_path)
+                if file_hash == clipboard_hash:
+                    with open(HASH_FILE, "a+") as hash_file:
+                        hash_file.seek(0)
+                        if f"{clipboard_hash} " not in hash_file.read():
+                            self.save_image_with_animation(file_path, clipboard_hash, clipboard_image)
+                    break
 
     def get_clipboard_image(self):
         try:
@@ -349,60 +390,37 @@ class ClipboardMonitor:
             print(f"Error saving image: {e}")
             return False
 
-    def check_clipboard(self):
-        """Timer callback to check clipboard."""
+    def _clipboard_listener_thread(self):
+        """Thread function for clipboard listener."""
         try:
-            clipboard_sequence_number = self.get_clipboard_sequence_number()
-            
-            if clipboard_sequence_number != self.last_clipboard_sequence_number:
-                self.last_clipboard_sequence_number = clipboard_sequence_number
-                clipboard_image = self.get_clipboard_image()
-                
-                if clipboard_image:
-                    clipboard_hash = hashlib.sha256(clipboard_image.tobytes()).hexdigest()
-                    
-                    if clipboard_hash != self.last_clipboard_hash:
-                        self.last_clipboard_hash = clipboard_hash
-
-                        last_files = self.get_last_files_in_cache(MAX_CACHE_FILES)
-                        for file_name in last_files:
-                            if not file_name.startswith("f_"):
-                                continue
-                            file_path = os.path.join(BRAVE_CACHE_PATH, file_name)
-                            if os.path.isfile(file_path):
-                                file_hash = self.calculate_image_hash(file_path)
-                                if file_hash == clipboard_hash:
-                                    with open(HASH_FILE, "a+") as hash_file:
-                                        hash_file.seek(0)
-                                        if f"{clipboard_hash} " not in hash_file.read():
-                                            if self.save_image_with_animation(file_path, clipboard_hash, clipboard_image):
-                                                self.last_action_time = time.time()
-                                    break
-            
-            # Schedule next check
-            interval = TIMER_INTERVAL_LONG if time.time() - self.last_action_time > INACTIVITY_THRESHOLD else TIMER_INTERVAL_SHORT
-            
-            if self.is_running:
-                self.timer_id = self.root.after(interval, self.check_clipboard)
-                
-        except Exception:
-            if self.is_running:
-                self.timer_id = self.root.after(TIMER_INTERVAL_LONG, self.check_clipboard)
+            self.hwnd = self._create_window()
+            ctypes.windll.user32.AddClipboardFormatListener(self.hwnd)
+            win32gui.PumpMessages()
+        except Exception as e:
+            print(f"Error in clipboard listener: {e}")
 
     def start(self):
         """Start clipboard monitoring."""
         print("Starting clipboard monitor...")
         self.is_running = True
-        self.last_action_time = time.time()
-        self.timer_id = self.root.after(TIMER_INTERVAL_SHORT, self.check_clipboard)
+        
+        # Start clipboard listener in separate thread
+        self.listener_thread = threading.Thread(target=self._clipboard_listener_thread, daemon=True)
+        self.listener_thread.start()
 
     def stop(self):
         """Stop clipboard monitoring."""
         print("Stopping clipboard monitor...")
         self.is_running = False
-        if self.timer_id:
-            self.root.after_cancel(self.timer_id)
-            self.timer_id = None
+        
+        if self.hwnd:
+            try:
+                ctypes.windll.user32.RemoveClipboardFormatListener(self.hwnd)
+                win32gui.DestroyWindow(self.hwnd)
+            except:
+                pass
+            self.hwnd = None
+            
         if self.save_animator.is_animating:
             self.save_animator._cleanup_animation()
 
