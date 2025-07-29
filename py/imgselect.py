@@ -1,7 +1,7 @@
 # importing the tkinter module and PIL
 # that is pillow module
 from tkinter import *
-from PIL import ImageTk, Image
+from PIL import ImageTk, Image, ImageOps
 import sys
 import math
 import glob
@@ -9,20 +9,32 @@ import threading
 import shutil
 import os
 
-
 #CONFIG
-view_width=1970
-view_height=1000
-GEOM="1977x1020" # Main Window
+if False: #fhd
+    view_width=1970
+    view_height=1000
+    GEOM="1977x1020" # Main Window
+else:
+    _scale=1.55
+    view_width=round(1970*_scale)
+    view_height=round(1000*_scale)
+    GEOM=f"{view_width+20}x{view_height+20}"
+    #with view_height+20 as gheight:
+    #    with view_width+20 as gwidth:
+            
 DEST='~/good_pics'
-SRC='~/Downloads/*.jpg'
-SRC='/mnt/z/BLOB/FromUSB/32GBmini/3D/DCIM/104_FUJI/*.JPG'
+#SRC='~/Downloads/*.jpg'
+#SRC='/mnt/z/BLOB/FromUSB/32GBmini/3D/DCIM/104_FUJI/*.JPG'
+ALBUM='2025_PPG_Burl2' 
+SRC=r'D:\\Photos\\'+ALBUM+r'\\*.JPG'
+DEST=r'D:\\Photos\\'+ALBUM+"good"
 #END CONFIG
 
 
 DEST=os.path.expanduser(DEST)
 SRC=os.path.expanduser(SRC)
-
+print(DEST)
+print(SRC)
 img_no=1
 
 def update():
@@ -41,7 +53,8 @@ def update():
 
     init_cache(img_no-1)
     img_cache[img_no-4]=None
-    img_cache[img_no+4]=None
+    if (len(img_cache)>img_no+4):
+        img_cache[img_no+4]=None
     preload(img_no)
     preload(img_no+1)
     root.title('Image Selector: ' + list_images[img_no-1] )
@@ -54,6 +67,8 @@ def update():
     with lock:
         sys.stdout.flush()
         img=ImageTk.PhotoImage(img_cache[img_no-1])
+        #img=Image.open(img_cache[img_no-1])
+        #img=ImageOps.exif_transpose(img)
         image_reference = img
         label = Label(image=img, width=view_width, height=view_height)
         label.grid(row=5, column=0, columnspan=3)
@@ -70,9 +85,10 @@ def forward():
 
 root = Tk()
 root.title("Image Viewer")
-root.geometry("1977x1020")
+root.geometry(GEOM)
 
 list_images = glob.glob(SRC)
+print(list_images)
 img_cache = [None]*len(list_images)
 
 lock = threading.Lock()
@@ -109,7 +125,9 @@ def _preload(i):
     #with lock:
     #    if img_cache[i] is not None and img_cache[i] != "Loading":
     #        return
+    print("PRELOADING: ", i)
     img=Image.open(list_images[i])
+    img=ImageOps.exif_transpose(img)
     img_cache[i] = img
 
     w = view_width

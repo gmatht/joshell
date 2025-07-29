@@ -13,13 +13,18 @@ import threading
 
 import win32api, win32gui
 
-OUTPUT_DIR = "F:\\pics"
+PIC_SAVE_DIR = "E:\\pics"
+CLIP_DIR = "F:\\clip"
+
+CLIP_ROWS=3
+CLIP_COLS=4
+CLIPS=CLIP_ROWS*CLIP_COLS
 
 DEBUG = False
 MAX_CACHE_FILES = 99 #number of files to check in the cache
 BRAVE_CACHE_PATH = r"%LocalAppData%\BraveSoftware\Brave-Browser\User Data\Default\Cache\Cache_Data"
 BRAVE_CACHE_PATH = os.path.expandvars(BRAVE_CACHE_PATH)
-HASH_FILE = os.path.join(OUTPUT_DIR, "sha256.txt")
+HASH_FILE = os.path.join(PIC_SAVE_DIR, "sha256.txt")
 
 # Animation constants
 ANIMATION_DURATION = 0.2  # seconds
@@ -32,8 +37,8 @@ if not os.path.exists(BRAVE_CACHE_PATH):
     print(f"Error: {BRAVE_CACHE_PATH} does not exist")
     exit(1)
 
-if not os.path.exists(OUTPUT_DIR):
-    print(f"Error: {OUTPUT_DIR} does not exist")
+if not os.path.exists(PIC_SAVE_DIR):
+    print(f"Error: {PIC_SAVE_DIR} does not exist")
     exit(1)
 
 def create_target_icon(size=256, img=None, is_duplicate=False):
@@ -71,7 +76,8 @@ def create_target_icon(size=256, img=None, is_duplicate=False):
         
         x = (size - text_width) // 2
         y = (size - text_height) // 2    
-        if img:
+        #if img and is_duplicate:
+        if img:    
             # Resize the background image to fit the icon size
             img = img.resize((size, size), Image.Resampling.LANCZOS)
             icon.paste(img, (0, 0))
@@ -322,6 +328,8 @@ class ClipboardMonitor:
 
     def _process_clipboard_change(self):
         """Process clipboard change in the main thread."""
+        
+        print(".", end="", flush=True)
         try:
             clipboard_image = self.get_clipboard_image()
             if clipboard_image:
@@ -391,7 +399,7 @@ class ClipboardMonitor:
                 return False
                 
             ext = kind.extension
-            new_file_path = os.path.join(OUTPUT_DIR, f"{clipboard_hash}.{ext}")
+            new_file_path = os.path.join(PIC_SAVE_DIR, f"{clipboard_hash}.{ext}")
             
             shutil.copyfile(file_path, new_file_path)
             

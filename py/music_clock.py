@@ -25,6 +25,7 @@ Arguments:
     --precache (Pre-cache the 22/44MB of MP3 speech files)
            #### DEBUGGING OPTIONS ####
     --alarm    (Start with the alarm enabled, mainly for debugging)
+    --snooze   (Start in Snoozed state)
     --play     (Just start the play thread without UI or clock)
 
 Keys:
@@ -46,8 +47,7 @@ import sys
 import random
 import select
 import threading
-import tty
-import termios
+import shutil
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -87,49 +87,89 @@ if AUDIO_24_HOUR_CLOCK:
 else:
     AUDIO_H = "I"
 
-if subprocess.call(["which", "ffplay"]) != 0:
-    print("ffplay not found")
-    sys.exit(1)
-
+ffplay_exe="ffplay"
+if not shutil.which(ffplay_exe):
+    ffplay_exe=None
+    for f in [r"C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin\ffplay.exe"]:
+        if os.path.isfile(f):
+            ffplay_exe=f
+            break
+    if not ffplay_exe:
+        print("ffplay not found")
+        os.exit()
+    
+       
+#win32
+#if subprocess.call(["which", "ffplay"]) != 0:
+#    print("ffplay not found")
+#    sys.exit(1)
 # Get terminal size
-LINES, COLS = [int(i) for i in os.popen("tput lines cols", "r").read().split()]
+
+#try:
+#    LINES, COLS = [int(i) for i in os.popen("tput lines cols", "r").read().split()]
+#except:
+#    #This may fail, e.g. on Win32. Just use some sensible defaults.
+#    LINES=24
+#    COLS=78
+
+COLS, LINES = os.get_terminal_size()
 
 lock = threading.RLock()
 
 
-class _GetchUnix:
-    """This code snippet defines a `__call__` method that takes an optional
-    argument `wait_seconds` with a default value of None (wait forever).
+try:
+    import termios
+    import tty
+    class _GetchUnix:
+       """This code snippet defines a `__call__` method that takes an optional
+       argument `wait_seconds` with a default value of None (wait forever).
+   
+       Inside the method, it retrieves the file descriptor of the standard input
+       (`sys.stdin.fileno()`), saves the current terminal settings
+       (`termios.tcgetattr(fd)`), and then sets the terminal to raw mode
+       (`tty.setraw(sys.stdin.fileno())`).
+   
+       Next, it uses the `select.select()` function to wait for input from the
+       standard input for the specified `wait_seconds`. If there is input
+       available, it reads a single character from the standard input
+       (`sys.stdin.read(1)`), otherwise it assigns an empty string to the variable `ch`.
+   
+       Finally, it restores the original terminal settings
+           (`termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)`)
+       and returns the value of `ch`."""
+   
+       def __call__(self, wait_seconds=None):
+           fd = sys.stdin.fileno()
+   
+           old_settings = termios.tcgetattr(fd)
+           try:
+               tty.setraw(sys.stdin.fileno())
+               r, w, e = select.select([fd], [], [], wait_seconds)
+               if fd in r:
+                   ch = sys.stdin.read(1)
+               else:
+                   ch = ""
+           finally:
+               termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+           return ch
 
-    Inside the method, it retrieves the file descriptor of the standard input
-    (`sys.stdin.fileno()`), saves the current terminal settings
-    (`termios.tcgetattr(fd)`), and then sets the terminal to raw mode
-    (`tty.setraw(sys.stdin.fileno())`).
 
-    Next, it uses the `select.select()` function to wait for input from the
-    standard input for the specified `wait_seconds`. If there is input
-    available, it reads a single character from the standard input
-    (`sys.stdin.read(1)`), otherwise it assigns an empty string to the variable `ch`.
+    getch = _GetchUnix()
+except:
+    import msvcrt
+    import time
+    #import bytes
+    def getch(wait):
 
-    Finally, it restores the original terminal settings
-        (`termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)`)
-    and returns the value of `ch`."""
-
-    def __call__(self, wait_seconds=None):
-        fd = sys.stdin.fileno()
-
-        old_settings = termios.tcgetattr(fd)
-        try:
-            tty.setraw(sys.stdin.fileno())
-            r, w, e = select.select([fd], [], [], wait_seconds)
-            if fd in r:
-                ch = sys.stdin.read(1)
-            else:
-                ch = ""
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        return ch
-
+        while wait > 0 and not msvcrt.kbhit():
+            mysleep = min(wait,1)
+            time.sleep(mysleep)
+            wait -= mysleep
+        if msvcrt.kbhit():
+            return bytes.decode(msvcrt.getch())
+        return '\0'
+    #getch = msvcrt._getch
+   
 
 def make_font_size(font_size, char_list):
     """
@@ -217,7 +257,6 @@ if datetime.now().year < 2024:
     os.system("ntpdate pool.ntp.org")
 
 
-getch = _GetchUnix()
 
 
 def replace_first_char_if_zero(s):
@@ -316,6 +355,8 @@ def play_music():
 
     while True:
         with lock:
+            #if os.name == 'nt' and not nt_playing:
+            #    continue
             if command == "q":  # QUIT
                 sys.exit()
             if command == "p":  # Previous
@@ -334,7 +375,7 @@ def play_music():
             command = ""
             ffplay = subprocess.Popen(
                 [
-                    "ffplay",
+                    ffplay_exe,
                     "-nodisp",
                     "-autoexit",
                     "-af",
@@ -345,7 +386,10 @@ def play_music():
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-        ffplay.wait()
+        time.sleep(99)
+        if ffplay:
+            ffplay.wait()
+        
 
 #quitting = False
 playing_rot = 0
@@ -354,7 +398,27 @@ LOG = open("idx.log", "a", encoding="utf-8")
 
 music_player = None
 
+nt_playing = 0
 
+def sigterm(o):
+    o.send_signal(signal.SIGTERM)
+
+if os.name=='nt':
+    def sigcont(o):
+        pass
+    sigkill=sigterm
+    sigstop=sigterm
+    sigint=sigterm
+else:
+    def sigint(o):
+        o.send_signal(signal.SIGINT)
+    def sigkill(o):
+        o.send_signal(signal.SIGKILL)
+    def sigcont(o):
+        o.send_signal(signal.SIGCONT)
+    def sigstop(o):
+        o.send_signal(signal.SIGSTOP)    
+        
 def signal_handler(sig, frame):
     """
     Handles the signal received by the program.
@@ -380,15 +444,15 @@ def signal_handler(sig, frame):
     print("You pressed Ctrl+C!")
     with lock:
         if ffplay:
-            ffplay.send_signal(signal.SIGKILL)
+            sigkill(ffplay)
             ffplay.wait()
         if voice:
-            voice.send_signal(signal.SIGKILL)
+            sigkill(voice)
             voice.wait()
     sys.exit(0)
 
 
-signal.signal(signal.SIGINT, signal_handler)
+#signal.signal(signal.SIGINT, signal_handler)
 
 
 def play():
@@ -412,13 +476,15 @@ def play():
             getch(0.1)
             with lock:
                 if ffplay:
-                    ffplay.send_signal(signal.SIGCONT)
+                    sigcont(ffplay)
+                    if os.name=='nt':
+                       nt_playing=1
                     break
 
 
-def pause():
-    with lock:
-        ffplay.send_signal(signal.SIGSTOP)
+#def pause():
+#    with lock:
+#        ffplay.send_signal(signal.SIGSTOP)
 
 
 def verbose(now):
@@ -568,8 +634,12 @@ def alarm_on():
     alarm = True
     setterm_blank(0)
     tput(f"setaf {WAKE_COLOR}")  # Set terminal fg to cyan
+    if os.name == 'nt':
+        with lock:
+            nt_playing=1
     play()
 
+snooze_now = None
 
 if not os.path.exists("tts/"):
     os.system("mkdir tts")
@@ -583,11 +653,12 @@ if len(sys.argv) > 1:
     elif sys.argv[1] == "--play":
         play_music()
         sys.exit()
+    elif sys.argv[1] == "--snooze":
+        snooze_now = datetime.now()
 
 REVIEW = open("idx.review", "a", encoding="utf-8")
 
 tput("clear")
-snooze_now = None
 while True:
     tput("cup 0 0")
     loop_now = datetime.now()
@@ -646,10 +717,10 @@ while True:
                 # It can take a few seconds for audio to start
                 # Add adelay so those seconds don't go missing
                 if voice:
-                    voice.send_signal(signal.SIGINT)
+                    sigint(voice)
                     voice.wait()
                 voice = subprocess.Popen(
-                    ["ffplay", "-nodisp", "-autoexit", "-af", "adelay=3000", fn],
+                    [ffplay_exe, "-nodisp", "-autoexit", "-af", "adelay=3000", fn],
                     shell=False,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -678,8 +749,8 @@ while True:
                 if not playable_rating(user_ch):
                     with lock:
                         command='d' # Don't play again
-                        ffplay.send_signal(signal.SIGINT)
-                        ffplay.send_signal(signal.SIGCONT)
+                        sigint(ffplay)
+                        sigcont(ffplay)
                         ffplay.wait()
                 user_ch = ""
             elif not user_ch:
@@ -688,8 +759,12 @@ while True:
                 with lock:
                     if user_ch in "p,<":
                         command='p'
-                    ffplay.send_signal(signal.SIGINT)
-                    ffplay.send_signal(signal.SIGCONT)
+                    sigint(ffplay)
+                    sigcont(ffplay) 
+                    if os.name=='nt':
+                        with lock:
+                            nt_playing=1  
+                    
                     ffplay.wait()
                 user_ch = ""
 
@@ -708,21 +783,29 @@ while True:
         print("Quit")
         with lock:
             command = "q"
-            if ffplay:
-                ffplay.send_signal(signal.SIGCONT)
-                ffplay.send_signal(signal.SIGINT)
-                ffplay.wait()
-            if voice:
-                voice.send_signal(signal.SIGINT)
-                voice.wait()
+        if ffplay:
+           sigcont(ffplay)
+           sigint(ffplay)
+           ffplay.wait()
+        if voice:
+           sigint(voice)
+           voice.wait()
         break
     if user_ch in "ws":
         alarm = False
         with lock:
             if ffplay:
-                ffplay.send_signal(signal.SIGSTOP)
+                if os.name=='nt':
+                    #sigstop(music_player)
+                    #music_player=None
+                    nt_playing=0
+                    sigstop(ffplay)
+                    ffplay.wait()
+                    ffplay=None
+                else:
+                    sigstop(ffplay)
         if voice:
-            voice.send_signal(signal.SIGINT)
+            sigint(voice)
             voice.wait()
         setterm_blank(WAKE_BLANK_MINS)  # Let terminal go blank after inactivity
         tput(f"setaf {SLEEP_COLOR}")  # Set terminal fg to brown
