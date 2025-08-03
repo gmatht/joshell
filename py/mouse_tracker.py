@@ -15,12 +15,15 @@ import math
 
 class MouseTracker:
     def __init__(self):
+        self.root = tk.Tk()
+        self.root.withdraw()
+
         # Get screen dimensions
         self.screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
         self.screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
         
         # Window properties
-        self.window_size = 60
+        self.window_size = 32
         self.window_color = '#DEAD77'  # We will make this transparent
         self.alpha = 0.3  # 70% opacity
         
