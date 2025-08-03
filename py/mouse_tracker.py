@@ -9,7 +9,7 @@ import tkinter as tk
 import win32api
 import win32gui
 import win32con
-import threading
+import pynput
 import time
 import math
 
@@ -28,7 +28,7 @@ class MouseTracker:
         # Window properties
         self.window_size = 32
         self.window_color = '#DEAD77'  # We will make this transparent
-        self.alpha = 0.3  # 70% opacity
+        self.alpha = 0.2  # 70% opacity
         
         # Store window objects
         self.windows = []
@@ -39,9 +39,12 @@ class MouseTracker:
         
         # Start mouse tracking thread
         self.running = True
-        self.track_thread = threading.Thread(target=self.track_mouse, daemon=True)
-        self.track_thread.start()
-        
+        #self.track_thread = threading.Thread(target=self.track_mouse, daemon=True)
+        #self.track_thread.start()
+
+        mouli = pynput.mouse.Listener(on_move = self.track_mouse)    
+        mouli.start()
+
         # Start the GUI for the first window (others will be managed separately)
         if self.windows:
             self.windows[0].mainloop()
@@ -248,7 +251,7 @@ class MouseTracker:
             
             # Define fade parameters
             max_distance = 200  # Distance at which window is fully visible
-            min_distance = 50   # Distance at which window starts fading
+            min_distance = self.window_size   # Distance at which window is fully faded
             min_opacity = 0     # Minimum opacity when very close
             max_opacity = self.alpha  # Maximum opacity (original alpha value)
             
@@ -268,11 +271,18 @@ class MouseTracker:
     
     def track_mouse(self):
         """Track mouse position in a separate thread"""
-        while self.running:
+        if self.running:
             try:
                 # Get mouse position
                 cursor = win32gui.GetCursorPos()
                 mouse_x, mouse_y = cursor
+                try:
+                    if self.old_mouse_x == mouse_x and self.old_mouse_y == mouse_y:
+                        return
+                except:
+                    pass
+                self.old_mouse_x = mouse_x
+                self.old_mouse_y = mouse_y
                 
                 # Update window visibility and triangles on main thread
                 if self.windows:
@@ -280,7 +290,7 @@ class MouseTracker:
                     self.windows[0].after(0, self.update_window_positions, mouse_x, mouse_y)
                 
                 # Small delay to prevent excessive updates
-                time.sleep(0.05)  # 20 FPS
+                #time.sleep(0.005)  # 200 FPS
                 
             except Exception as e:
                 print(f"Error tracking mouse: {e}")
