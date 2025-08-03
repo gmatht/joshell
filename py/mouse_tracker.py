@@ -21,8 +21,8 @@ class MouseTracker:
         
         # Window properties
         self.window_size = 60
-        self.window_color = '#FFFF00'  # Yellow
-        self.alpha = 0.7  # 70% opacity
+        self.window_color = '#DEAD77'  # We will make this transparent
+        self.alpha = 0.3  # 70% opacity
         
         # Store window objects
         self.windows = []
@@ -39,19 +39,25 @@ class MouseTracker:
         # Start the GUI for the first window (others will be managed separately)
         if self.windows:
             self.windows[0].mainloop()
-    
+
+    def calc_positions(self, mouse_x, mouse_y):
+        """Calculate positions for the 4 windows"""
+        positions = [
+            (0, mouse_y),  # Top-left
+            (self.screen_width - self.window_size, mouse_y),  # Top-right
+            (mouse_x, self.screen_height - self.window_size),  # Bottom-left
+            (mouse_x, 0)  # Bottom-right
+        ]
+        return positions
+
     def create_windows(self):
         """Create 4 small windows positioned at screen corners"""
         # Define positions for the 4 windows (corners)
-        positions = [
-            (0, 0),  # Top-left
-            (self.screen_width - self.window_size, 0),  # Top-right
-            (0, self.screen_height - self.window_size),  # Bottom-left
-            (self.screen_width - self.window_size, self.screen_height - self.window_size)  # Bottom-right
-        ]
-        
+        positions = self.calc_positions(0, 0)
+
         for i, (x, y) in enumerate(positions):
             window = self.create_single_window(x, y, i)
+            window.attributes("-transparentcolor", self.window_color)
             self.windows.append(window)
             self.window_positions.append((x, y))
     
@@ -93,16 +99,16 @@ class MouseTracker:
         """Create a static triangle pointing in the appropriate direction based on window position"""
         center_x = self.window_size // 2
         center_y = self.window_size // 2
-        triangle_size = 20
+        triangle_size = self.window_size // 2
         
         # Create triangles pointing inward from each corner
-        if window_id == 0:  # Top-left - point down-right
+        if window_id == 1:  # Top-left - point down-right
             points = [
                 center_x - triangle_size, center_y - triangle_size,
                 center_x + triangle_size, center_y - triangle_size,
-                center_x + triangle_size, center_y + triangle_size
+                center_x                , center_y + triangle_size
             ]
-        elif window_id == 1:  # Top-right - point down-left
+        elif window_id == 0:  # Top-right - point down-left
             points = [
                 center_x - triangle_size, center_y - triangle_size,
                 center_x + triangle_size, center_y - triangle_size,
@@ -120,58 +126,59 @@ class MouseTracker:
                 center_x + triangle_size, center_y - triangle_size,
                 center_x - triangle_size, center_y + triangle_size
             ]
+
+        if window_id == 3:  # Top-left - point down-right
+            points = [
+                center_x - triangle_size, center_y - triangle_size,
+                center_x + triangle_size, center_y - triangle_size,
+                center_x                , center_y + triangle_size
+            ]
+        if window_id == 2:  # Top-left - point down-right
+            points = [
+                center_x - triangle_size, center_y + triangle_size,
+                center_x + triangle_size, center_y + triangle_size,
+                center_x                , center_y - triangle_size
+            ]
+        if window_id == 0:  # Top-left - point down-right
+            points = [
+                center_x - triangle_size, center_y - triangle_size,
+                center_x - triangle_size, center_y + triangle_size,
+                center_x + triangle_size, center_y
+            ]
+        if window_id == 1:  # Top-left - point down-right
+            points = [
+                center_x + triangle_size, center_y - triangle_size,
+                center_x + triangle_size, center_y + triangle_size,
+                center_x - triangle_size, center_y
+            ]
+        
         
         canvas.create_polygon(
             points[0], points[1],
             points[2], points[3],
             points[4], points[5],
-            fill='#FF4400', outline='#CC2200', width=2
+            fill='#FFFF00'
         )
-    
+        #fill='#FF4400', outline='#CC2200', width=2
     def update_window_positions(self, mouse_x, mouse_y):
         """Move windows to point toward mouse cursor"""
+
+        positions = [
+            (0, mouse_y),  # Top-left
+            (self.screen_width - self.window_size, mouse_y),  # Top-right
+            (mouse_x, self.screen_height - self.window_size),  # Bottom-left
+            (mouse_x, 0)  # Bottom-right
+        ]
+
         for i, window in enumerate(self.windows):
             try:
                 # Calculate new position based on mouse location
-                new_x, new_y = self.calculate_window_position(i, mouse_x, mouse_y)
+                new_x, new_y = positions[i]
                 
                 # Update window position
                 window.geometry(f"{self.window_size}x{self.window_size}+{new_x}+{new_y}")
             except:
                 pass
-    
-    def calculate_window_position(self, window_id, mouse_x, mouse_y):
-        """Calculate optimal window position to point toward mouse"""
-        # Define base positions (corners)
-        base_positions = [
-            (0, 0),  # Top-left
-            (self.screen_width - self.window_size, 0),  # Top-right
-            (0, self.screen_height - self.window_size),  # Bottom-left
-            (self.screen_width - self.window_size, self.screen_height - self.window_size)  # Bottom-right
-        ]
-        
-        base_x, base_y = base_positions[window_id]
-        
-        # Calculate offset based on mouse position
-        # Move window slightly toward mouse while staying near the corner
-        offset_x = int((mouse_x - self.screen_width // 2) * 0.1)
-        offset_y = int((mouse_y - self.screen_height // 2) * 0.1)
-        
-        # Apply offset while keeping window in appropriate corner
-        if window_id == 0:  # Top-left
-            new_x = max(0, min(self.screen_width // 2 - self.window_size, base_x + offset_x))
-            new_y = max(0, min(self.screen_height // 2 - self.window_size, base_y + offset_y))
-        elif window_id == 1:  # Top-right
-            new_x = max(self.screen_width // 2, min(self.screen_width - self.window_size, base_x + offset_x))
-            new_y = max(0, min(self.screen_height // 2 - self.window_size, base_y + offset_y))
-        elif window_id == 2:  # Bottom-left
-            new_x = max(0, min(self.screen_width // 2 - self.window_size, base_x + offset_x))
-            new_y = max(self.screen_height // 2, min(self.screen_height - self.window_size, base_y + offset_y))
-        else:  # Bottom-right
-            new_x = max(self.screen_width // 2, min(self.screen_width - self.window_size, base_x + offset_x))
-            new_y = max(self.screen_height // 2, min(self.screen_height - self.window_size, base_y + offset_y))
-        
-        return new_x, new_y
     
     def is_mouse_over_window(self, window, mouse_x, mouse_y):
         """Check if mouse cursor is over a specific window"""
