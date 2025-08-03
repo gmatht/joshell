@@ -10,8 +10,6 @@ import win32api
 import win32gui
 import win32con
 import pynput
-import time
-import math
 
 class MouseTracker:
     def __init__(self):
@@ -36,11 +34,6 @@ class MouseTracker:
         
         # Create 4 small windows
         self.create_windows()
-        
-        # Start mouse tracking thread
-        self.running = True
-        #self.track_thread = threading.Thread(target=self.track_mouse, daemon=True)
-        #self.track_thread.start()
 
         mouli = pynput.mouse.Listener(on_move = self.track_mouse)    
         mouli.start()
@@ -134,58 +127,31 @@ class MouseTracker:
         center_x = self.window_size // 2
         center_y = self.window_size // 2
         triangle_size = self.window_size // 2
-        
-        # Create triangles pointing inward from each corner
-        if window_id == 1:  # Top-left - point down-right
-            points = [
-                center_x - triangle_size, center_y - triangle_size,
-                center_x + triangle_size, center_y - triangle_size,
-                center_x                , center_y + triangle_size
-            ]
-        elif window_id == 0:  # Top-right - point down-left
-            points = [
-                center_x - triangle_size, center_y - triangle_size,
-                center_x + triangle_size, center_y - triangle_size,
-                center_x - triangle_size, center_y + triangle_size
-            ]
-        elif window_id == 2:  # Bottom-left - point up-right
-            points = [
-                center_x - triangle_size, center_y - triangle_size,
-                center_x + triangle_size, center_y - triangle_size,
-                center_x + triangle_size, center_y + triangle_size
-            ]
-        else:  # Bottom-right - point up-left
-            points = [
-                center_x - triangle_size, center_y - triangle_size,
-                center_x + triangle_size, center_y - triangle_size,
-                center_x - triangle_size, center_y + triangle_size
-            ]
 
-        if window_id == 3:  # Top-left - point down-right
-            points = [
-                center_x - triangle_size, center_y - triangle_size,
-                center_x + triangle_size, center_y - triangle_size,
-                center_x                , center_y + triangle_size
-            ]
-        if window_id == 2:  # Top-left - point down-right
-            points = [
-                center_x - triangle_size, center_y + triangle_size,
-                center_x + triangle_size, center_y + triangle_size,
-                center_x                , center_y - triangle_size
-            ]
         if window_id == 0:  # Top-left - point down-right
             points = [
                 center_x - triangle_size, center_y - triangle_size,
                 center_x - triangle_size, center_y + triangle_size,
                 center_x + triangle_size, center_y
             ]
-        if window_id == 1:  # Top-left - point down-right
+        elif window_id == 1:  # Top-left - point down-right
             points = [
                 center_x + triangle_size, center_y - triangle_size,
                 center_x + triangle_size, center_y + triangle_size,
                 center_x - triangle_size, center_y
             ]
-        
+        elif window_id == 2:  # Top-left - point down-right
+            points = [
+                center_x - triangle_size, center_y + triangle_size,
+                center_x + triangle_size, center_y + triangle_size,
+                center_x                , center_y - triangle_size
+            ]
+        elif window_id == 3:  # Top-left - point down-right
+            points = [
+                center_x - triangle_size, center_y - triangle_size,
+                center_x + triangle_size, center_y - triangle_size,
+                center_x                , center_y + triangle_size
+            ]
         
         canvas.create_polygon(  
             points[0], points[1],
@@ -247,11 +213,11 @@ class MouseTracker:
             window_y = window.winfo_y() + self.window_size // 2
             
             # Calculate distance from mouse to window center
-            distance = math.sqrt((mouse_x - window_x)**2 + (mouse_y - window_y)**2)
+            distance = abs(mouse_x - window_x) + abs(mouse_y - window_y)
             
             # Define fade parameters
-            max_distance = 200  # Distance at which window is fully visible
-            min_distance = self.window_size   # Distance at which window is fully faded
+            max_distance = self.window_size*2  # Distance at which window is fully visible
+            min_distance = self.window_size//2   # Distance at which window is fully faded
             min_opacity = 0     # Minimum opacity when very close
             max_opacity = self.alpha  # Maximum opacity (original alpha value)
             
@@ -271,34 +237,33 @@ class MouseTracker:
     
     def track_mouse(self):
         """Track mouse position in a separate thread"""
-        if self.running:
+        try:
+            # Get mouse position
+            cursor = win32gui.GetCursorPos()
+            mouse_x, mouse_y = cursor
             try:
-                # Get mouse position
-                cursor = win32gui.GetCursorPos()
-                mouse_x, mouse_y = cursor
-                try:
-                    if self.old_mouse_x == mouse_x and self.old_mouse_y == mouse_y:
-                        return
-                except:
-                    pass
-                self.old_mouse_x = mouse_x
-                self.old_mouse_y = mouse_y
-                
-                # Update window visibility and triangles on main thread
-                if self.windows:
-                    self.windows[0].after(0, self.update_window_visibility, mouse_x, mouse_y)
-                    self.windows[0].after(0, self.update_window_positions, mouse_x, mouse_y)
-                
-                # Small delay to prevent excessive updates
-                #time.sleep(0.005)  # 200 FPS
-                
-            except Exception as e:
-                print(f"Error tracking mouse: {e}")
-                time.sleep(0.1)
-    
+                if self.old_mouse_x == mouse_x and self.old_mouse_y == mouse_y:
+                    return
+            except:
+                pass
+            self.old_mouse_x = mouse_x
+            self.old_mouse_y = mouse_y
+            
+            # Update window visibility and triangles on main thread
+            if self.windows:
+                self.windows[0].after(0, self.update_window_visibility, mouse_x, mouse_y)
+                self.windows[0].after(0, self.update_window_positions, mouse_x, mouse_y)
+            
+            # Small delay to prevent excessive updates
+            #time.sleep(0.005)  # 200 FPS
+            
+        except Exception as e:
+            print(f"Error tracking mouse: {e}")
+            #time.sleep(0.1)
+            quit()
+
     def quit(self):
         """Clean up and exit"""
-        self.running = False
         # Close all windows
         for window in self.windows:
             try:
