@@ -22,6 +22,9 @@ class MouseTracker:
         self.screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
         self.screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
         
+        # Get active monitor info
+        self.active_monitor = self.get_active_monitor()
+        
         # Window properties
         self.window_size = 32
         self.window_color = '#DEAD77'  # We will make this transparent
@@ -43,13 +46,36 @@ class MouseTracker:
         if self.windows:
             self.windows[0].mainloop()
 
+    def get_active_monitor(self):
+        """Get the active monitor information"""
+        try:
+            # Get the monitor that contains the cursor
+            cursor_pos = win32gui.GetCursorPos()
+            monitor_info = win32api.MonitorFromPoint(cursor_pos, win32con.MONITOR_DEFAULTTONEAREST)
+            
+            # Get monitor info
+            monitor_data = win32api.GetMonitorInfo(monitor_info)
+            return monitor_data
+        except:
+            # Fallback to primary monitor
+            return {
+                'Monitor': (0, 0, self.screen_width, self.screen_height),
+                'Work': (0, 0, self.screen_width, self.screen_height)
+            }
+
     def calc_positions(self, mouse_x, mouse_y):
         """Calculate positions for the 4 windows"""
+        # Get current active monitor
+        active_monitor = self.get_active_monitor()
+        monitor_rect = active_monitor['Monitor']
+        monitor_x, monitor_y, monitor_right, monitor_bottom = monitor_rect
+        
+        # Calculate positions relative to the active monitor
         positions = [
-            (0, mouse_y),  # Top-left
-            (self.screen_width - self.window_size, mouse_y),  # Top-right
-            (mouse_x, self.screen_height - self.window_size),  # Bottom-left
-            (mouse_x, 0)  # Bottom-right
+            (monitor_x, mouse_y),  # Top-left
+            (monitor_right - self.window_size, mouse_y),  # Top-right
+            (mouse_x, monitor_bottom - self.window_size),  # Bottom-left
+            (mouse_x, monitor_y)  # Bottom-right
         ]
         return positions
 
@@ -160,18 +186,13 @@ class MouseTracker:
             points[0], points[1],
             points[2], points[3],
             points[4], points[5],
-            fill='#FFFF00'
+            fill='#FFFF00', outline='#000000', width=2
         )
         #fill='#FF4400', outline='#CC2200', width=2
     def update_window_positions(self, mouse_x, mouse_y):
         """Move windows to point toward mouse cursor"""
 
-        positions = [
-            (0, mouse_y),  # Top-left
-            (self.screen_width - self.window_size, mouse_y),  # Top-right
-            (mouse_x, self.screen_height - self.window_size),  # Bottom-left
-            (mouse_x, 0)  # Bottom-right
-        ]
+        positions = self.calc_positions(mouse_x, mouse_y)
 
         for i, window in enumerate(self.windows):
             try:
