@@ -26,11 +26,10 @@ class MouseTracker:
         # Window properties
         self.window_size = 32
         self.window_color = '#DEAD77'  # We will make this transparent
-        self.alpha = 0.2  # 70% opacity
+        self.alpha = 0.2  # 20% opacity
         
         # Store window objects
         self.windows = []
-        self.window_positions = []
         
         # Create 4 small windows
         self.create_windows()
@@ -86,7 +85,6 @@ class MouseTracker:
             window = self.create_single_window(x, y, i)
             window.attributes("-transparentcolor", self.window_color)
             self.windows.append(window)
-            self.window_positions.append((x, y))
     
     def create_single_window(self, x, y, window_id):
         """Create a single small window"""
@@ -128,25 +126,25 @@ class MouseTracker:
         center_y = self.window_size // 2
         triangle_size = self.window_size // 2
 
-        if window_id == 0:  # Top-left - point down-right
+        if window_id == 0: 
             points = [
                 center_x - triangle_size, center_y - triangle_size,
                 center_x - triangle_size, center_y + triangle_size,
                 center_x + triangle_size, center_y
             ]
-        elif window_id == 1:  # Top-left - point down-right
+        elif window_id == 1:
             points = [
                 center_x + triangle_size, center_y - triangle_size,
                 center_x + triangle_size, center_y + triangle_size,
                 center_x - triangle_size, center_y
             ]
-        elif window_id == 2:  # Top-left - point down-right
+        elif window_id == 2:
             points = [
                 center_x - triangle_size, center_y + triangle_size,
                 center_x + triangle_size, center_y + triangle_size,
                 center_x                , center_y - triangle_size
             ]
-        elif window_id == 3:  # Top-left - point down-right
+        elif window_id == 3:
             points = [
                 center_x - triangle_size, center_y - triangle_size,
                 center_x + triangle_size, center_y - triangle_size,
@@ -159,7 +157,6 @@ class MouseTracker:
             points[4], points[5],
             fill='#FFFF00', outline='#000000', width=2
         )
-        #fill='#FF4400', outline='#CC2200', width=2
     def update_window_positions(self, mouse_x, mouse_y):
         """Move windows to point toward mouse cursor"""
 
@@ -249,17 +246,13 @@ class MouseTracker:
             self.old_mouse_x = mouse_x
             self.old_mouse_y = mouse_y
             
-            # Update window visibility and triangles on main thread
+            # Update window visibility and positions on main thread
             if self.windows:
                 self.windows[0].after(0, self.update_window_visibility, mouse_x, mouse_y)
                 self.windows[0].after(0, self.update_window_positions, mouse_x, mouse_y)
             
-            # Small delay to prevent excessive updates
-            #time.sleep(0.005)  # 200 FPS
-            
         except Exception as e:
             print(f"Error tracking mouse: {e}")
-            #time.sleep(0.1)
             quit()
 
     def quit(self):
