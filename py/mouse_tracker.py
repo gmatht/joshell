@@ -69,13 +69,15 @@ class MouseTracker:
         active_monitor = self.get_active_monitor()
         monitor_rect = active_monitor['Monitor']
         monitor_x, monitor_y, monitor_right, monitor_bottom = monitor_rect
+
+        adjust = self.window_size // 2
         
         # Calculate positions relative to the active monitor
         positions = [
-            (monitor_x, mouse_y),  # Top-left
-            (monitor_right - self.window_size, mouse_y),  # Top-right
-            (mouse_x, monitor_bottom - self.window_size),  # Bottom-left
-            (mouse_x, monitor_y)  # Bottom-right
+            (monitor_x, mouse_y-adjust),  # Top-left
+            (monitor_right - self.window_size, mouse_y-adjust),  # Top-right
+            (mouse_x-adjust, monitor_bottom - self.window_size),  # Bottom-left
+            (mouse_x-adjust, monitor_y)  # Bottom-right
         ]
         return positions
 
@@ -182,7 +184,7 @@ class MouseTracker:
             ]
         
         
-        canvas.create_polygon(
+        canvas.create_polygon(  
             points[0], points[1],
             points[2], points[3],
             points[4], points[5],
