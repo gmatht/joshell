@@ -222,17 +222,49 @@ class MouseTracker:
             return False
     
     def update_window_visibility(self, mouse_x, mouse_y):
-        """Show/hide windows based on mouse position"""
+        """Show/hide windows and adjust opacity based on mouse position"""
         for window in self.windows:
             try:
                 if self.is_mouse_over_window(window, mouse_x, mouse_y):
                     # Hide window if mouse is over it
                     window.withdraw()
                 else:
-                    # Show window if mouse is not over it
+                    # Show window and adjust opacity based on distance
                     window.deiconify()
+                    opacity = self.calculate_opacity(window, mouse_x, mouse_y)
+                    window.attributes('-alpha', opacity)
             except:
                 pass
+    
+    def calculate_opacity(self, window, mouse_x, mouse_y):
+        """Calculate opacity based on distance from mouse to window center"""
+        try:
+            # Get window center position
+            window_x = window.winfo_x() + self.window_size // 2
+            window_y = window.winfo_y() + self.window_size // 2
+            
+            # Calculate distance from mouse to window center
+            distance = math.sqrt((mouse_x - window_x)**2 + (mouse_y - window_y)**2)
+            
+            # Define fade parameters
+            max_distance = 200  # Distance at which window is fully visible
+            min_distance = 50   # Distance at which window starts fading
+            min_opacity = 0     # Minimum opacity when very close
+            max_opacity = self.alpha  # Maximum opacity (original alpha value)
+            
+            if distance <= min_distance:
+                # Very close - minimum opacity
+                return min_opacity
+            elif distance >= max_distance:
+                # Far away - maximum opacity
+                return max_opacity
+            else:
+                # In fade zone - interpolate opacity
+                fade_ratio = (distance - min_distance) / (max_distance - min_distance)
+                return min_opacity + (max_opacity - min_opacity) * fade_ratio
+                
+        except:
+            return self.alpha  # Fallback to original alpha
     
     def track_mouse(self):
         """Track mouse position in a separate thread"""
